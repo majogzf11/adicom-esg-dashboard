@@ -656,7 +656,6 @@ with tabs[0]:
         with st.spinner("Generando análisis..."):
           st.markdown(
               explicar_grafica_ia(df_tu_tabla, "Título de tu Gráfica o Pestaña")
-      )
 
             )
             st.markdown(analisis)
