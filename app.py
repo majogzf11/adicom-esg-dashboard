@@ -15,11 +15,11 @@ import sqlite3
 import time
 
 # ==========================================
-# 1. CONFIGURACIÓN DE LA PÁGINA Y ESTILO PDF (MINIMALISTA VINTAGE/SAGE)
+# 1. CONFIGURACIÓN DE LA PÁGINA Y ESTILO
 # ==========================================
 st.set_page_config(
-    page_title="ADICOM | Ethics, Governance & Sustainability",
-    page_icon="🌿",
+    page_title="ADICOM | Certifications Dashboard",
+    page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -28,113 +28,94 @@ st.set_page_config(
 URL_KPIS_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=1096975805&single=true&output=csv"
 URL_ROADMAP_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=2082257667&single=true&output=csv"
 
-# Inyección de estilos CSS inspirados exactamente en la presentación PDF
+# Inyección de estilos CSS Modernos (SaaS Dashboard Style)
 st.markdown("""
     <style>
-    /* Fondo principal limpio */
+    /* Fondo principal y tipografía */
     .stApp {
-        background-color: #f7faf8;
-        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        background-color: #f0f4f8;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
     }
     
-    /* Encabezados y tipografía */
+    /* Headers de colores */
     h1, h2, h3 {
-        color: #24382c !important;
-        font-weight: 600 !important;
+        color: #102a43 !important;
+        font-weight: 700 !important;
     }
     
-    /* Círculo verde característico de la presentación */
-    .pdf-circle-icon {
-        background-color: #a4d0a0;
-        width: 70px;
-        height: 70px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 32px;
-        margin-bottom: 12px;
-        box-shadow: 0 4px 10px rgba(164, 208, 160, 0.3);
-    }
-    
-    /* Tarjetas minimalistas estilo PDF */
-    .pdf-card {
+    /* Tarjetas principales (Los 4 Cuadrantes) */
+    .quadrant-card {
         background-color: #ffffff;
         border-radius: 16px;
         padding: 24px;
-        border: 1px solid #e2ebe4;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
-        margin-bottom: 20px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        border-top: 4px solid #334e68;
         height: 100%;
+        margin-bottom: 20px;
     }
     
-    .pdf-badge {
-        background-color: #eaf5ed;
-        color: #2d5a3b;
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 600;
-        display: inline-block;
-        margin-right: 8px;
-        margin-bottom: 8px;
-    }
+    /* Variaciones de color para el borde superior de los cuadrantes */
+    .card-info { border-top-color: #2cb1bc; }
+    .card-roadmap { border-top-color: #f59f00; }
+    .card-advantages { border-top-color: #82c91e; }
+    .card-kpis { border-top-color: #e03131; }
     
-    /* Ajuste de barra de progreso */
-    .stProgress > div > div > div > div {
-        background-color: #6baf84 !important;
+    /* Títulos de sección estilo Pizarrón */
+    .section-title {
+        color: #334e68;
+        text-transform: uppercase;
+        font-size: 0.9rem;
+        letter-spacing: 1.5px;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #f0f4f8;
+        padding-bottom: 8px;
     }
+
+    /* Badges / Etiquetas */
+    .badge-adicom { background-color: #e6fcfa; color: #0c8599; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; display: inline-block;}
+    .badge-client { background-color: #f3f0ff; color: #6741d9; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; display: inline-block;}
     
-    /* Botón personalizado de sincronización */
-    .stButton>button {
-        background-color: #6baf84;
-        color: white;
-        border-radius: 8px;
-        border: none;
-        padding: 8px 16px;
-        font-weight: 500;
-        transition: all 0.2s;
-    }
-    .stButton>button:hover {
-        background-color: #55966d;
-        color: white;
-    }
+    /* Checkbox personalizado para que resalte */
+    .stCheckbox label p { font-size: 15px !important; color: #334e68 !important; font-weight: 500;}
     
-    /* Checkbox personalizado */
-    .stCheckbox label p {
-        font-size: 15px !important;
-        color: #2c3e50 !important;
-    }
+    /* Timeline visual CSS */
+    .timeline-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; position: relative;}
+    .timeline-line { position: absolute; height: 4px; background-color: #d9e2ec; width: 100%; z-index: 1; top: 50%; transform: translateY(-50%);}
+    .timeline-node { width: 30px; height: 30px; background-color: #f59f00; border-radius: 50%; z-index: 2; border: 4px solid white; box-shadow: 0 0 0 2px #f59f00;}
+    
+    /* Ajuste de métricas */
+    [data-testid="stMetricValue"] { font-size: 1.8rem !important; color: #102a43; }
+    [data-testid="stMetricLabel"] { font-size: 0.9rem !important; color: #627d98; }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. BASE DE DATOS LOCAL (PERSISTENCIA DE ROADMAP)
+# 2. BASE DE DATOS LOCAL (PERSISTENCIA DE CHECKLIST)
 # ==========================================
-conn = sqlite3.connect('adicom_roadmap.db', check_same_thread=False)
+conn = sqlite3.connect('adicom_roadmap_v2.db', check_same_thread=False)
 c = conn.cursor()
-c.execute('CREATE TABLE IF NOT EXISTS checklist (task_id TEXT PRIMARY KEY, status INTEGER)')
+# Tabla mejorada para soportar filtrado por certificación
+c.execute('CREATE TABLE IF NOT EXISTS checklist_v2 (task_id TEXT PRIMARY KEY, cert TEXT, status INTEGER)')
 conn.commit()
 
 def get_task_status(task_id, default_val=False):
-    c.execute("SELECT status FROM checklist WHERE task_id=?", (task_id,))
+    c.execute("SELECT status FROM checklist_v2 WHERE task_id=?", (task_id,))
     res = c.fetchone()
-    if res is not None:
-        return bool(res[0])
-    return default_val
+    return bool(res[0]) if res else default_val
 
-def toggle_task(task_id):
-    current_status = get_task_status(task_id)
-    new_status = 0 if current_status else 1
-    c.execute("REPLACE INTO checklist (task_id, status) VALUES (?, ?)", (task_id, new_status))
+def set_task_status(task_id, cert, status):
+    new_status = 1 if status else 0
+    c.execute("REPLACE INTO checklist_v2 (task_id, cert, status) VALUES (?, ?, ?)", (task_id, cert, new_status))
     conn.commit()
 
-# ==========================================
-# 3. CARGA DE DATOS SIN CACHÉ CDN (SOLUCIÓN GOOGLE SHEETS)
-# ==========================================
+# Callback para guardar estado al instante
+def update_task_callback(task_id, cert):
+    val = st.session_state[task_id]
+    set_task_status(task_id, cert, val)
 
-# ttl=5 fuerza la actualización casi inmediata.
-# Se agrega un parámetro dinámico timestamp (&_nocache=...) para evitar que Google Sheets retorne la respuesta cacheada por CDN.
+# ==========================================
+# 3. DATOS Y GOOGLE SHEETS
+# ==========================================
 @st.cache_data(ttl=5) 
 def load_data_from_google_sheets(url_base):
     try:
@@ -148,290 +129,257 @@ def load_data_from_google_sheets(url_base):
 df_kpis = load_data_from_google_sheets(URL_KPIS_BASE)
 df_roadmap = load_data_from_google_sheets(URL_ROADMAP_BASE)
 
-# Fallbacks defensivos para KPIs y finanzas
-data_kpis_default = pd.DataFrame({
-    'Métrica': ['Ahorro Eficiencia Energética', 'Payback Ambiental', 'ROI Proyectos Ambientales', 'Ahorro Reducción Residuos', 'Costo Ambiental / Proyecto'],
-    'Valor': [28500, 1.4, 34.5, 14200, 8500],
-    'Unidad': ['USD', 'Años', '%', 'USD', 'USD'],
-    'Meta': [35000, 1.0, 40.0, 18000, 7000]
+# Fallbacks con estructura del pizarrón
+data_kpis_board = pd.DataFrame({
+    'Concepto': ['Inv. Inicial', 'ROI Esperado', 'Costo Operativo', 'Ahorro Proyectado'],
+    'ISO_14001': [12000, 35, 2500, 18500],
+    'ISO_45001': [15000, 28, 3000, 14200]
 })
 
-data_roi_default = pd.DataFrame({
-    'Mes': ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
-    'Ahorro Energético ($)': [4500, 6200, 8900, 11500, 14800, 18500],
-    'Ahorro Residuos ($)': [2100, 3400, 4800, 6100, 7900, 9400],
-    'Costo Ambiental ($)': [12000, 10500, 9200, 8100, 7000, 6200]
+data_trends = pd.DataFrame({
+    'Mes': ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'],
+    'Ahorro Generado': [10, 15, 25, 40, 55, 75],
+    'Costo Implementación': [50, 45, 30, 20, 15, 10]
 })
+
+# Diccionario del Roadmap (Milestones y Checklists por cert)
+ROADMAP_DATA = {
+    "ISO 14001": {
+        "Fase 1: Diagnóstico": ["Mapeo de Procesos", "Análisis GAP Medioambiental", "Definición Política ISO 14001"],
+        "Fase 2: Evaluación": ["Matriz de Impactos Ambientales", "Registro Requisitos Legales", "KPIs Ambientales"],
+        "Fase 3: Operación": ["Capacitación de Personal", "Control de Residuos", "Simulacros de Emergencia"],
+        "Fase 4: Certificación": ["Auditoría Interna", "Acciones Correctivas", "Auditoría Externa (Certificadora)"]
+    },
+    "ISO 45001": {
+        "Fase 1: Diagnóstico": ["Inspección de Instalaciones", "Análisis GAP Seguridad", "Definición Política SST"],
+        "Fase 2: Evaluación": ["Matriz IPERC (Riesgos)", "Exámenes Médicos Ocupacionales", "Requisitos Legales STPS"],
+        "Fase 3: Operación": ["Entrega EPP", "Capacitación Brigadas", "Señalización"],
+        "Fase 4: Certificación": ["Auditoría Interna SST", "Revisión por la Dirección", "Auditoría Externa"]
+    }
+}
 
 # ==========================================
-# 4. BARRA LATERAL (NAVEGACIÓN)
+# 4. BARRA LATERAL (NAVEGACIÓN COMO EL PIZARRÓN)
 # ==========================================
 with st.sidebar:
     st.markdown("""
-        <div style='text-align: center; padding: 10px 0;'>
-            <div style='background-color: #a4d0a0; width: 60px; height: 60px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 28px;'>🍃</div>
-            <h2 style='margin-top: 10px; font-size: 20px; color: #1e3a29;'>ADICOM ESG</h2>
-            <p style='font-size: 12px; color: #64748b;'>Ethics, Governance & Sustainability</p>
+        <div style='text-align: center; padding: 10px 0 20px 0;'>
+            <h1 style='color: #102a43; font-size: 28px; margin-bottom: 0;'>ADICOM</h1>
+            <p style='color: #2cb1bc; font-weight: 600; letter-spacing: 2px; font-size: 12px; margin-top: 0;'>CERTIFICATION DASHBOARD</p>
         </div>
     """, unsafe_allow_html=True)
     
-    st.markdown("---")
     menu = st.radio(
-        "Navegación",
-        ["🏠 Visión & Certificaciones", "📊 Dashboard KPIs (PDF Style)", "🗺️ Roadmap de Trabajo", "📋 Datos Google Sheets"]
+        "SELECCIONA VISTA:",
+        ["📘 ISO 14001", "📙 ISO 45001", "✅ Checklist Global & Tabla", "🔄 Sincronizar / Datos"]
     )
     
     st.markdown("---")
-    st.markdown("### 🔄 Sincronización")
-    if st.button("Actualizar desde Excel", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-    st.caption("⚡ Datos en tiempo real conectados con Google Sheets.")
-    
-    # Avance Global de Certificación
-    total_items = 12
-    c.execute("SELECT COUNT(*) FROM checklist WHERE status=1")
-    completadas = c.fetchone()[0]
-    progreso = int((completadas / max(total_items, 1)) * 100)
-    progreso = min(progreso, 100)
-    
-    st.markdown("---")
-    st.markdown(f"**Progreso Global:** {progreso}%")
+    st.markdown("**Progreso Global Certificaciones:**")
+    # Calcular progreso rápido
+    c.execute("SELECT COUNT(*) FROM checklist_v2")
+    totales = c.fetchone()[0] or 1
+    c.execute("SELECT COUNT(*) FROM checklist_v2 WHERE status=1")
+    hechas = c.fetchone()[0] or 0
+    progreso = int((hechas / max(totales, 1)) * 100)
     st.progress(progreso / 100.0)
+    st.caption(f"{hechas} tareas completadas de {totales}")
 
 # ==========================================
-# 5. VISTAS DE LA APLICACIÓN
+# 5. RENDERIZADO DE LAS VISTAS
 # ==========================================
 
-# ------------------------------------------
-# VISTA 1: VISIÓN Y CERTIFICACIONES (ESTILO PRESENTACIÓN)
-# ------------------------------------------
-if menu == "🏠 Visión & Certificaciones":
-    st.markdown("""
-        <div style='padding: 20px 0;'>
-            <span style='color: #6baf84; font-weight: 700; letter-spacing: 1px; font-size: 14px;'>ETHICS, GOVERNANCE AND SUSTAINABILITY</span>
-            <h1 style='font-size: 36px; margin-top: 4px;'>ADICOM Feedback & Estrategia ESG</h1>
-        </div>
-    """, unsafe_allow_html=True)
+if menu in ["📘 ISO 14001", "📙 ISO 45001"]:
+    cert_name = "ISO 14001" if "14001" in menu else "ISO 45001"
     
-    col1, col2 = st.columns(2)
+    st.markdown(f"<h1 style='text-align: center; font-size: 3rem; margin-bottom: 30px; border-bottom: 4px solid #102a43; padding-bottom: 10px;'>{cert_name}</h1>", unsafe_allow_html=True)
     
+    # --- FILA 1 ---
+    col1, col2 = st.columns([1, 1.2])
+    
+    # CUADRANTE 1: ¿QUÉ ES?
     with col1:
-        st.markdown("""
-        <div class="pdf-card">
-            <div class="pdf-circle-icon">🍃</div>
-            <h2>ISO 14001</h2>
-            <p style='color: #64748b; font-size: 14px; margin-bottom: 15px;'>Environmental Management Systems (EMS)</p>
-            
-            <h4 style='color: #24382c; font-size: 16px;'>¿Para qué sirve?</h4>
-            <ul style='color: #475569; font-size: 14px; padding-left: 20px;'>
-                <li>Manage Environmental Impact</li>
-                <li>Ensure Environmental Compliance</li>
-                <li>Continuous Improvement</li>
-            </ul>
-            
-            <h4 style='color: #24382c; font-size: 16px; margin-top: 15px;'>Beneficios ADICOM:</h4>
-            <div>
-                <span class="pdf-badge">Diferenciación Comercial</span>
-                <span class="pdf-badge">Acceso a nuevos Mercados</span>
-                <span class="pdf-badge">Eficiencia y Competitividad</span>
-            </div>
-            
-            <h4 style='color: #24382c; font-size: 16px; margin-top: 15px;'>Documentación Requerida:</h4>
-            <ul style='color: #475569; font-size: 13px; padding-left: 20px;'>
-                <li>Política ambiental y alcance del SGA</li>
-                <li>Matriz de aspectos e impactos ambientales</li>
-                <li>Registro de requisitos legales aplicables</li>
-                <li>Objetivos ambientales y plan de acción</li>
-                <li>Procedimientos de control operacional</li>
-                <li>Plan de respuesta ante emergencias</li>
+        st.markdown(f"""
+        <div class="quadrant-card card-info">
+            <div class="section-title">¿Qué es?</div>
+            <p style='color: #486581; font-size: 1.1rem; line-height: 1.6;'>
+                {'Norma internacional para <b>Sistemas de Gestión Ambiental (SGA)</b>. Ayuda a controlar impactos ambientales, reducir residuos y cumplir con la legislación vigente, mejorando la imagen corporativa.' if cert_name == 'ISO 14001' else 'Norma internacional para <b>Sistemas de Gestión de Seguridad y Salud en el Trabajo (SST)</b>. Previene lesiones, enfermedades laborales y asegura un entorno de trabajo seguro.'}
+            </p>
+            <br>
+            <div class="section-title">Documentos Requeridos</div>
+            <ul style='color: #486581;'>
+                <li>Manual del Sistema de Gestión</li>
+                <li>Matriz de {'Aspectos e Impactos Ambientales' if cert_name == 'ISO 14001' else 'Peligros y Riesgos (IPERC)'}</li>
+                <li>Procedimientos Operativos Estandarizados (SOPs)</li>
+                <li>Registros de Auditoría Interna</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
-        
+
+    # CUADRANTE 2: ROADMAP (Línea de tiempo y checklist)
     with col2:
+        st.markdown("""<div class="quadrant-card card-roadmap">
+            <div class="section-title">Roadmap (Milestones)</div>
+        """, unsafe_allow_html=True)
+        
+        # Selección de Fase estilo Milestones
+        fases = list(ROADMAP_DATA[cert_name].keys())
+        selected_phase = st.radio("Selecciona un Milestone en el tiempo:", fases, horizontal=True)
+        
+        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        st.markdown(f"**Checklist: {selected_phase}**")
+        
+        # Renderizar checkboxes dinámicos guardando en SQLite
+        for task in ROADMAP_DATA[cert_name][selected_phase]:
+            task_id = f"{cert_name}_{selected_phase}_{task}".replace(" ", "_")
+            current_val = get_task_status(task_id)
+            
+            st.checkbox(
+                task, 
+                value=current_val, 
+                key=task_id, 
+                on_change=update_task_callback, 
+                args=(task_id, cert_name)
+            )
+            
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- FILA 2 ---
+    col3, col4 = st.columns([1, 1.2])
+    
+    # CUADRANTE 3: ADVANTAGES (Adicom / Clientes)
+    with col3:
         st.markdown("""
-        <div class="pdf-card">
-            <div class="pdf-circle-icon">🛡️</div>
-            <h2>ISO 45001</h2>
-            <p style='color: #64748b; font-size: 14px; margin-bottom: 15px;'>Sistemas de Gestión de Seguridad y Salud en el Trabajo</p>
-            
-            <h4 style='color: #24382c; font-size: 16px;'>¿Para qué sirve?</h4>
-            <ul style='color: #475569; font-size: 14px; padding-left: 20px;'>
-                <li>Gestión de Riesgos de Seguridad y Salud</li>
-                <li>Garantizar el Cumplimiento Legal</li>
-                <li>Protección Integral del Equipo de Trabajo</li>
-            </ul>
-            
-            <h4 style='color: #24382c; font-size: 16px; margin-top: 15px;'>Valor para el Cliente:</h4>
-            <div>
-                <span class="pdf-badge">Mayor Confianza</span>
-                <span class="pdf-badge">Menor Riesgo Operativo</span>
-                <span class="pdf-badge">Cumplimiento y Sostenibilidad</span>
+        <div class="quadrant-card card-advantages">
+            <div class="section-title">Ventajas / Advantages</div>
+            <div style='display: flex; justify-content: space-between; gap: 20px;'>
+                <div style='flex: 1; border-right: 1px solid #d9e2ec; padding-right: 15px;'>
+                    <h4 style='color: #0c8599;'>Para ADICOM</h4>
+                    <span class='badge-adicom'>Reducción de Costos</span>
+                    <p style='font-size: 0.9rem; color: #486581;'>Optimización de recursos y menos multas.</p>
+                    
+                    <span class='badge-adicom'>Diferenciador Mercado</span>
+                    <p style='font-size: 0.9rem; color: #486581;'>Puntaje extra en licitaciones y concursos.</p>
+                    
+                    <span class='badge-adicom'>Operación Ágil</span>
+                    <p style='font-size: 0.9rem; color: #486581;'>Procesos estandarizados y medibles.</p>
+                </div>
+                <div style='flex: 1; padding-left: 5px;'>
+                    <h4 style='color: #6741d9;'>Para CLIENTES</h4>
+                    <span class='badge-client'>Confianza / Trust</span>
+                    <p style='font-size: 0.9rem; color: #486581;'>Garantía de calidad y responsabilidad corporativa.</p>
+                    
+                    <span class='badge-client'>Cadena Suministro Segura</span>
+                    <p style='font-size: 0.9rem; color: #486581;'>Cumplimiento normativo heredado.</p>
+                    
+                    <span class='badge-client'>Continuidad Negocio</span>
+                    <p style='font-size: 0.9rem; color: #486581;'>Menor riesgo de paros por accidentes o clausuras.</p>
+                </div>
             </div>
-            
-            <h4 style='color: #24382c; font-size: 16px; margin-top: 15px;'>Documentación Requerida:</h4>
-            <ul style='color: #475569; font-size: 13px; padding-left: 20px;'>
-                <li>Política de SST y alcance del sistema</li>
-                <li>Matriz de peligros y evaluación de riesgos</li>
-                <li>Registro de requisitos legales aplicables</li>
-                <li>Objetivos de SST y plan de acción</li>
-                <li>Plan de respuesta ante emergencias</li>
-                <li>Registro de incidentes y acciones correctivas</li>
-            </ul>
         </div>
         """, unsafe_allow_html=True)
 
-# ------------------------------------------
-# VISTA 2: DASHBOARD DE KPIS (INSPIRADO EN PDF PAGE 3)
-# ------------------------------------------
-elif menu == "📊 Dashboard KPIs (PDF Style)":
-    st.markdown("""
-        <div style='padding: 10px 0;'>
-            <h2>📊 Indicadores ESG & Financieros Ambientales</h2>
-            <p style='color: #64748b;'>Métricas de impacto basadas en la estrategia del portafolio ADICOM.</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # 5 KPIs del PDF
-    col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns(5)
-    
-    col_k1.metric("Ahorro Eficiencia", "$18.5K", "+15% vs Q1")
-    col_k2.metric("Payback Ambiental", "1.2 Años", "-0.3 años meta")
-    col_k3.metric("ROI Ambientales", "34.5%", "+5.2%")
-    col_k4.metric("Ahorro Residuos", "$9.4K", "Optimizado")
-    col_k5.metric("Costo Ambiental", "$6.2K", "-18% reducción")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    col_left, col_right = st.columns([1, 1])
-    
-    with col_left:
-        st.markdown("### 📈 Tendencia de Ahorro y Eficiencia")
-        fig_line = px.line(
-            data_roi_default, 
-            x='Mes', 
-            y=['Ahorro Energético ($)', 'Ahorro Residuos ($)', 'Costo Ambiental ($)'],
-            color_discrete_sequence=['#6baf84', '#38704d', '#e07a5f'],
-            markers=True
-        )
-        fig_line.update_layout(
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            font=dict(family="Segoe UI, sans-serif", color="#2c3e50"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=20, r=20, t=30, b=20)
-        )
-        fig_line.update_xaxes(showgrid=True, gridcolor='#f0f4f1')
-        fig_line.update_yaxes(showgrid=True, gridcolor='#f0f4f1')
-        st.plotly_chart(fig_line, use_container_width=True)
+    # CUADRANTE 4: FINANCIAL KPIs
+    with col4:
+        st.markdown("""<div class="quadrant-card card-kpis">
+            <div class="section-title">Financial KPIs & Variables</div>
+        """, unsafe_allow_html=True)
         
-    with col_right:
-        st.markdown("### 🎯 Desempeño respecto a Objetivos")
-        fig_bar = px.bar(
-            data_kpis_default,
-            x='Métrica',
-            y=['Valor', 'Meta'],
-            barmode='group',
-            color_discrete_sequence=['#6baf84', '#d4edd9']
-        )
-        fig_bar.update_layout(
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            font=dict(family="Segoe UI, sans-serif", color="#2c3e50"),
+        # Extraer variables específicas de la tabla hardcodeada (o GSheets si existiera formato exacto)
+        cert_col = 'ISO_14001' if cert_name == 'ISO 14001' else 'ISO_45001'
+        inv = data_kpis_board.loc[data_kpis_board['Concepto'] == 'Inv. Inicial', cert_col].values[0]
+        roi = data_kpis_board.loc[data_kpis_board['Concepto'] == 'ROI Esperado', cert_col].values[0]
+        costo = data_kpis_board.loc[data_kpis_board['Concepto'] == 'Costo Operativo', cert_col].values[0]
+        
+        # Mini metrics
+        mc1, mc2, mc3 = st.columns(3)
+        mc1.metric("Inv. Inicial", f"${inv:,}")
+        mc2.metric("ROI Esperado", f"{roi}%")
+        mc3.metric("Costo", f"${costo:,}")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Gráfica de Barras + Línea (Visible y clara)
+        fig = go.Figure()
+        # Barras de Costo
+        fig.add_trace(go.Bar(
+            x=data_trends['Mes'], y=data_trends['Costo Implementación'], 
+            name='Costo', marker_color='#334e68'
+        ))
+        # Línea de Ahorro / Beneficio (% o Proxy)
+        fig.add_trace(go.Scatter(
+            x=data_trends['Mes'], y=data_trends['Ahorro Generado'], 
+            name='Ahorro/Proxys (%)', mode='lines+markers',
+            line=dict(color='#2cb1bc', width=4), marker=dict(size=8)
+        ))
+        
+        fig.update_layout(
+            title="Evolución Financiera del Proyecto",
+            template="plotly_white",
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=0, r=0, t=30, b=0),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=20, r=20, t=30, b=20)
+            height=250
         )
-        fig_bar.update_xaxes(showgrid=False)
-        fig_bar.update_yaxes(showgrid=True, gridcolor='#f0f4f1')
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------
-# VISTA 3: ROADMAP DE TRABAJO (MEJORADO Y ESTRUCTURADO)
+# VISTA: TABLA INTERACTIVA Y CHECKLIST GLOBAL
 # ------------------------------------------
-elif menu == "🗺️ Roadmap de Trabajo":
-    st.markdown("""
-        <div style='padding: 10px 0;'>
-            <h2>🗺️ Roadmap Integrado ISO 14001 & ISO 45001</h2>
-            <p style='color: #64748b;'>Hitos organizados por fases documentales y de cumplimiento normativo.</p>
-        </div>
-    """, unsafe_allow_html=True)
+elif menu == "✅ Checklist Global & Tabla":
+    st.markdown("<h1>Tabla Interactiva & Control Total</h1>", unsafe_allow_html=True)
+    st.markdown("Visualización completa de las certificaciones (Similar al dibujo inferior derecho del pizarrón).")
     
-    # Estructura limpia y organizada por Fases
-    roadmap_fases = {
-        "Fase 1: Diagnóstico y Políticas Base (ISO 14001 / ISO 45001)": [
-            ("r1_1", "Política Ambiental y alcance del SGA (ISO 14001)", "ISO 14001"),
-            ("r1_2", "Política de SST y alcance del sistema (ISO 45001)", "ISO 45001"),
-            ("r1_3", "Asignación de liderazgo y comité de sostenibilidad", "Gobernanza")
-        ],
-        "Fase 2: Evaluación de Riesgos e Impactos Legal": [
-            ("r2_1", "Matriz de aspectos e impactos ambientales", "ISO 14001"),
-            ("r2_2", "Matriz de peligros y evaluación de riesgos (SST)", "ISO 45001"),
-            ("r2_3", "Registro de requisitos legales aplicables", "Cumplimiento")
-        ],
-        "Fase 3: Operación, Objetivos y Emergencias": [
-            ("r3_1", "Objetivos ambientales y de SST con plan de acción", "Planificación"),
-            ("r3_2", "Procedimientos de control operacional", "Operación"),
-            ("r3_3", "Plan de respuesta ante emergencias", "Seguridad")
-        ],
-        "Fase 4: Verificación y Auditoría Final": [
-            ("r4_1", "Registro de incidentes y acciones correctivas", "ISO 45001"),
-            ("r4_2", "Auditoría Interna de SGA y SST", "Auditoría"),
-            ("r4_3", "Certificación Final por Tercero", "Certificación")
-        ]
-    }
-
-    # Si vienen datos limpios desde Google Sheets, los integramos de forma prioritaria
-    if df_roadmap is not None and not df_roadmap.empty:
-        st.info("💡 Mostrando datos sincronizados en tiempo real desde Google Sheets")
-        st.dataframe(df_roadmap, use_container_width=True)
-    else:
-        # Renderizado interactivo y estilizado por tarjetas
-        for fase_titulo, tareas in roadmap_fases.items():
-            completadas_count = sum([1 for t_id, _, _ in tareas if get_task_status(t_id)])
-            pct = int((completadas_count / len(tareas)) * 100)
-            
-            with st.expander(f"📌 {fase_titulo} — ({completadas_count}/{len(tareas)} completadas)", expanded=True):
-                st.progress(pct / 100.0)
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                for task_id, task_text, tag in tareas:
-                    col_check, col_tag = st.columns([5, 1])
-                    with col_check:
-                        st.checkbox(
-                            task_text,
-                            value=get_task_status(task_id),
-                            key=task_id,
-                            on_change=toggle_task,
-                            args=(task_id,)
-                        )
-                    with col_tag:
-                        st.markdown(f"<span class='pdf-badge'>{tag}</span>", unsafe_allow_html=True)
-
-# ------------------------------------------
-# VISTA 4: HOJAS DE DATOS DIRECTAS (GOOGLE SHEETS)
-# ------------------------------------------
-elif menu == "📋 Datos Google Sheets":
-    st.markdown("""
-        <div style='padding: 10px 0;'>
-            <h2>📋 Inspección Directa de Tablas (Google Sheets)</h2>
-            <p style='color: #64748b;'>Verificación de sincronización de datos crudos.</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    t1, t2 = st.tabs(["📊 Hoja KPIs", "🗺️ Hoja Roadmap"])
+    t1, t2 = st.tabs(["📋 Todas las Tareas (Roadmap)", "🧮 Tabla Interactiva Comparativa"])
     
     with t1:
-        if df_kpis is not None and not df_kpis.empty:
-            st.success("✅ Datos de KPIs recibidos de Google Sheets correctamente")
-            st.dataframe(df_kpis, use_container_width=True)
-        else:
-            st.warning("⚠️ No se pudo obtener la tabla de KPIs. Se está mostrando la estructura local por defecto.")
-            st.dataframe(data_kpis_default, use_container_width=True)
-            
+        st.markdown("### Estado de todas las fases")
+        for cert, fases in ROADMAP_DATA.items():
+            with st.expander(f"📚 {cert} - Roadmap Completo", expanded=True):
+                for fase, tareas in fases.items():
+                    st.markdown(f"**{fase}**")
+                    for task in tareas:
+                        task_id = f"{cert}_{fase}_{task}".replace(" ", "_")
+                        current_val = get_task_status(task_id)
+                        # Checkboxes interactivos aquí también
+                        st.checkbox(f"[{cert}] {task}", value=current_val, key=f"global_{task_id}", 
+                                    on_change=update_task_callback, args=(f"global_{task_id}", cert))
+                    st.markdown("---")
+                    
     with t2:
-        if df_roadmap is not None and not df_roadmap.empty:
-            st.success("✅ Datos de Roadmap recibidos de Google Sheets correctamente")
-            st.dataframe(df_roadmap, use_container_width=True)
-        else:
-            st.info("ℹ️ Utilizando vista de tarjetas interactiva de Roadmap.")
+        st.markdown("### Matriz de Cumplimiento Cruzado")
+        st.info("Esta tabla representa cómo ciertos procesos (C1, C2...) aplican para diferentes ISOs.")
+        
+        # Tabla Mockup basada en el dibujo
+        tabla_interactiva = pd.DataFrame({
+            'Proceso/Req': ['C1 (Control Docs)', 'C2 (Auditoría)', 'C3 (Riesgos)', 'C4 (Ambiental)', 'C5 (Salud)'],
+            'ISO 14001': ['✅', '✅', '✅', '✅', '❌'],
+            'ISO 45001': ['✅', '✅', '✅', '❌', '✅'],
+            'ISO 9001 (Ref)': ['✅', '✅', '✅', '❌', '❌']
+        })
+        st.dataframe(tabla_interactiva, use_container_width=True, hide_index=True)
+
+# ------------------------------------------
+# VISTA: DATOS / SINCRONIZACIÓN
+# ------------------------------------------
+elif menu == "🔄 Sincronizar / Datos":
+    st.markdown("<h1>Conexión Google Sheets</h1>", unsafe_allow_html=True)
+    
+    if st.button("🔄 Forzar Sincronización con Excel / Sheets", type="primary"):
+        st.cache_data.clear()
+        st.rerun()
+        
+    st.markdown("### Datos Crudos de KPIs")
+    if df_kpis is not None:
+        st.dataframe(df_kpis)
+    else:
+        st.warning("No se pudo conectar a KPIs. Revisa la URL.")
+        
+    st.markdown("### Datos Crudos de Roadmap")
+    if df_roadmap is not None:
+        st.dataframe(df_roadmap)
+    else:
+        st.warning("No se pudo conectar al Roadmap. Revisa la URL.")
