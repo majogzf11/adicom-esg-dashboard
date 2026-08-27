@@ -101,7 +101,7 @@ st.markdown(f"""
     }}
     .cert-card h4 {{ margin-top: 0; color: {COLORS['darkTeal']}; }}
     .doc-chip {{
-        display: inline-block; background-color: #FFFFFF; border: 1px solid #DCE4E2;
+        display: inline-block; background-color: #0B2E4A; border: 1px solid #DCE4E2;
         border-radius: 8px; padding: 6px 12px; margin: 4px 6px 4px 0; font-size: 0.85rem;
         color: {COLORS['ink']};
     }}
