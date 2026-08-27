@@ -26,6 +26,11 @@ ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Corregida)
 ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Pro)
 """
 
+# -*- coding: utf-8 -*-
+"""
+ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Pro)
+"""
+
 import io
 import json
 import re
@@ -67,7 +72,7 @@ POLL_SECONDS = 60  # Sincronización cada 60 segundos para cuidar consumo de dat
 STATE_FILE = Path(__file__).parent / "data" / "checklist_state.json"
 
 # =================================================================================================
-# 1. ESTILOS CSS ESTRICTOS CON COLORES DE LETRA ACTUALIZADOS
+# 1. ESTILOS CSS ESTRICTOS EN BLANCO Y NEGRO
 # =================================================================================================
 COLORS = {
     "navy": "#0B2E4A",
@@ -76,7 +81,7 @@ COLORS = {
     "green": "#2FAE8C",
     "lightGray": "#F8F9FA",
     "borderGray": "#E9ECEF",
-    "ink": "#0F172A",      # Color principal de texto (Slate oscuro)
+    "ink": "#1E1E1E",
     "white": "#FFFFFF",
     "warn": "#C77B1E",
     "lock": "#9E9E9E",
@@ -94,14 +99,14 @@ PLOTLY_TEMPLATE_COLORWAY = [COLORS["teal"], COLORS["darkTeal"], COLORS["green"],
 
 st.markdown(f"""
 <style>
-    /* Tipografía y fondo global blanco con texto en #0F172A */
+    /* Tipografía y fondo global blanco */
     html, body, [class*="css"], .stApp {{
         font-family: 'Segoe UI', 'Calibri', sans-serif;
         background-color: #FFFFFF !important;
-        color: #0F172A !important;
+        color: #1E1E1E !important;
     }}
     
-    /* Contenedores principales y barra lateral */
+    /* Contenedores principales y barra lateral en blanco */
     [data-testid="stAppViewContainer"], .main, section[data-testid="stSidebar"] {{
         background-color: #FFFFFF !important;
     }}
@@ -109,15 +114,15 @@ st.markdown(f"""
         border-right: 1px solid #E9ECEF !important;
     }}
 
-    /* Títulos, textos y etiquetas */
+    /* Títulos, textos y etiquetas en negro */
     h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, th, td, [data-baseweb="tab"] {{
-        color: #0F172A !important;
+        color: #1E1E1E !important;
     }}
 
-    /* Botones */
+    /* Botones con bordes suaves */
     button, div[data-testid="stButton"] > button {{
         background-color: #F8F9FA !important;
-        color: #0F172A !important;
+        color: #1E1E1E !important;
         border: 1px solid #CED4DA !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
@@ -128,24 +133,31 @@ st.markdown(f"""
         border-color: #ADB5BD !important;
     }}
 
-    /* Selectbox y campos desplegables */
+    /* Selectbox y campos desplegables con fondo blanco */
     div[data-baseweb="select"] > div,
     div[data-baseweb="base-input"] input {{
         background-color: #FFFFFF !important;
-        color: #0F172A !important;
+        color: #1E1E1E !important;
         border-color: #CED4DA !important;
+    }}
+
+    /* Letras blancas para la caja de texto / prompt de Gemini */
+    div[data-baseweb="textarea"] textarea,
+    div[data-baseweb="base-input"] textarea,
+    textarea {{
+        color: #FFFFFF !important;
     }}
 
     /* Menús flotantes (Popovers / Dropdowns) */
     [data-baseweb="popover"], [data-baseweb="menu"], ul[role="listbox"], li[role="option"] {{
         background-color: #FFFFFF !important;
-        color: #0F172A !important;
+        color: #1E1E1E !important;
     }}
 
     /* Chips de multiselect */
     span[data-baseweb="tag"] {{
         background-color: #E9ECEF !important;
-        color: #0F172A !important;
+        color: #1E1E1E !important;
     }}
 
     /* Tarjeta Hero Principal */
@@ -157,7 +169,7 @@ st.markdown(f"""
         color: #FFFFFF !important;
     }}
     .adicom-hero h1 {{ color: #FFFFFF !important; font-size: 2.1rem; font-weight: 800; margin: 0; }}
-    .adicom-hero p {{ color: #F1F5F9 !important; font-size: 1.0rem; margin-top: 6px; }}
+    .adicom-hero p {{ color: #E0F2FE !important; font-size: 1.0rem; margin-top: 6px; }}
 
     /* Tarjetas de Métricas */
     div[data-testid="stMetric"] {{
@@ -166,8 +178,8 @@ st.markdown(f"""
         border-radius: 12px;
         border: 1px solid #E9ECEF !important;
     }}
-    div[data-testid="stMetricLabel"] {{ color: #334155 !important; font-weight: 600; }}
-    div[data-testid="stMetricValue"] {{ color: #0F172A !important; font-weight: 700; }}
+    div[data-testid="stMetricLabel"] {{ color: #495057 !important; font-weight: 600; }}
+    div[data-testid="stMetricValue"] {{ color: #1E1E1E !important; font-weight: 700; }}
 
     /* Tarjetas de Certificación y ODS */
     .cert-card {{
@@ -176,7 +188,6 @@ st.markdown(f"""
         border-radius: 12px;
         padding: 18px;
         height: 100%;
-        color: #0F172A !important;
     }}
     .ods-card {{
         background-color: #FFFFFF;
@@ -186,7 +197,6 @@ st.markdown(f"""
         padding: 16px;
         margin-bottom: 12px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        color: #0F172A !important;
     }}
     
     .doc-chip {{
@@ -198,7 +208,7 @@ st.markdown(f"""
         margin: 4px;
         font-size: 0.85rem;
         font-weight: 500;
-        color: #0F172A !important;
+        color: #1E1E1E !important;
     }}
 
     /* Badges de estado */
@@ -208,7 +218,7 @@ st.markdown(f"""
 
     .celebrate {{
         background: linear-gradient(135deg, {COLORS['green']} 0%, {COLORS['teal']} 100%);
-        padding: 18px; border-radius: 12px; text-align: center; color: #FFFFFF !important;
+        padding: 18px; border-radius: 12px; text-align: center; color: white !important;
         font-size: 1.1rem; font-weight: 700; margin: 12px 0;
     }}
     footer, #MainMenu {{ visibility: hidden; }}
@@ -642,7 +652,7 @@ with tabs[0]:
             barmode="group",
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
-            font=dict(color="#0F172A"),
+            font=dict(color="#000000"),
             xaxis=dict(tickangle=-25, gridcolor="#E9ECEF"),
             yaxis=dict(gridcolor="#E9ECEF"),
             height=370,
@@ -672,7 +682,7 @@ with tabs[0]:
         fig_pie.update_layout(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
-            font=dict(color="#0F172A"),
+            font=dict(color="#000000"),
             height=370,
             legend=dict(orientation="h", y=-0.25),
             margin=dict(l=20, r=20, t=30, b=50)
@@ -725,7 +735,7 @@ with tabs[1]:
         fig_ods_bar.update_layout(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
-            font=dict(color="#0F172A"),
+            font=dict(color="#000000"),
             height=340,
             coloraxis_showscale=False
         )
@@ -745,8 +755,8 @@ with tabs[1]:
             st.markdown(f"""
             <div class="ods-card" style="border-left-color: {info['color']};">
                 <h4 style="margin: 0; color: {info['color']} !important;">{info['nombre']}</h4>
-                <p style="margin-top: 6px; font-size: 0.9rem; color: #334155;"><b>Propósito ONU:</b> {info['descripcion']}</p>
-                <p style="margin-top: 4px; font-size: 0.9rem; background-color: #F8F9FA; padding: 8px; border-radius: 6px; color: #0F172A;">
+                <p style="margin-top: 6px; font-size: 0.9rem;"><b>Propósito ONU:</b> {info['descripcion']}</p>
+                <p style="margin-top: 4px; font-size: 0.9rem; background-color: #F8F9FA; padding: 8px; border-radius: 6px;">
                     <b>💡 Aplicación en Adicom:</b> {info['impacto_adicom']}
                 </p>
             </div>
@@ -868,7 +878,7 @@ def render_roadmap_path(cert: str, df_cert_roadmap: pd.DataFrame):
             st.markdown(f"""
                 <div style="text-align:center;">
                     <div style="font-size:1.8rem;">{icono}</div>
-                    <div style="font-weight:700; font-size:0.85rem; min-height:2.2em; color: #0F172A;">{fase}</div>
+                    <div style="font-weight:700; font-size:0.85rem; min-height:2.2em;">{fase}</div>
                     <span class="{badge_class}">{badge_txt} · {info['completas']}/{info['total']}</span>
                 </div>
             """, unsafe_allow_html=True)
@@ -911,17 +921,17 @@ for cert in CERT_ORDER:
         st.markdown(f"### {info['titulo']}")
         st.markdown(
             f'<div style="background-color:#F8F9FA; border-left:4px solid {accent}; '
-            f'padding:14px 18px; border-radius:8px; margin-bottom:16px; color:#0F172A;">{info["que_es"]}</div>',
+            f'padding:14px 18px; border-radius:8px; margin-bottom:16px;">{info["que_es"]}</div>',
             unsafe_allow_html=True,
         )
 
         colA, colB = st.columns(2)
         with colA:
             st.markdown('<div class="cert-card"><h4>✅ Ventajas para Adicom</h4>' +
-                        "".join(f"<p style='color:#334155;'>• {b}</p>" for b in info["adicom"]) + "</div>", unsafe_allow_html=True)
+                        "".join(f"<p>• {b}</p>" for b in info["adicom"]) + "</div>", unsafe_allow_html=True)
         with colB:
             st.markdown('<div class="cert-card"><h4>🤝 Ventajas para Clientes</h4>' +
-                        "".join(f"<p style='color:#334155;'>• {b}</p>" for b in info["clientes"]) + "</div>", unsafe_allow_html=True)
+                        "".join(f"<p>• {b}</p>" for b in info["clientes"]) + "</div>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("**📄 Documentos Clave Requeridos:**")
@@ -956,7 +966,7 @@ for cert in CERT_ORDER:
                 barmode="group",
                 paper_bgcolor="#FFFFFF",
                 plot_bgcolor="#FFFFFF",
-                font=dict(color="#0F172A"),
+                font=dict(color="#000000"),
                 height=320,
                 xaxis=dict(tickangle=-20, gridcolor="#E9ECEF"),
                 yaxis=dict(gridcolor="#E9ECEF"),
