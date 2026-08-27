@@ -26,8 +26,9 @@ import requests
 import streamlit as st
 import openai
 import streamlit as st
-
-client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+import google.generativeai as genai
+genai.configure(api_key=st.secrets["OPENAI_API_KEY"])
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -180,31 +181,30 @@ st.markdown(f"""
 # =================================================================================================
 @st.cache_data
 def obtener_explicacion_ia(df_datos):
-    client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    
-    # Filtramos las columnas clave para no enviar información redundante
-    columnas_clave = [c for c in ["Iniciativa_ESG", "ODS_Impactado", "Presupuesto_Asignado_USD"] if c in df_datos.columns]
-    resumen_datos = df_datos[columnas_clave].to_string(index=False)
+    try:
+        # Usa el nombre anterior directamente con la librería de Google
+        genai.configure(api_key=st.secrets["OPENAI_API_KEY"])
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        columnas_clave = [c for c in ["Iniciativa_ESG", "ODS_Impactado", "Presupuesto_Asignado_USD"] if c in df_datos.columns]
+        resumen_datos = df_datos[columnas_clave].to_string(index=False)
 
-    prompt = f"""
-    Actúa como un consultor experto en sostenibilidad ESG. 
-    Analiza la siguiente información de la gráfica sobre el impacto y distribución por ODS:
-    
-    {resumen_datos}
-    
-    Proporciona un análisis en español estructurado de la siguiente forma:
-    - **Resultado general:** Una oración resumen del presupuesto destinado a ODS.
-    - **Fortaleza:** El ODS con mayor asignación o impacto y qué representa.
-    - **Oportunidad de mejora:** Qué área requiere mayor atención o balance.
-    Escribe en un tono directo y ejecutivo (máximo 120 palabras).
-    """
+        prompt = f"""
+        Actúa como un consultor experto en sostenibilidad ESG. 
+        Analiza la siguiente información de la gráfica sobre el impacto y distribución por ODS:
+        
+        {resumen_datos}
+        
+        Proporciona un análisis en español estructurado (máximo 120 palabras):
+        - **Resultado general:** Una oración resumen del presupuesto destinado a ODS.
+        - **Fortaleza:** El ODS con mayor asignación o impacto y qué representa.
+        - **Oportunidad de mejora:** Qué área requiere mayor atención o balance.
+        """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-    return response.choices[0].message.content
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"⚠️ Error de conexión con Gemini: {str(e)}"
 # =================================================================================================
 # 2. CONOCIMIENTO ESTÁTICO POR CERTIFICACIÓN (de la investigación previa del proyecto)
 # =================================================================================================
@@ -607,11 +607,11 @@ with tabs[0]:
 
         with st.expander("🤖 **Análisis Ejecutivo ODS (IA)**"):
             if "OPENAI_API_KEY" in st.secrets:
-                with st.spinner("Generando análisis en tiempo real..."):
+                with st.spinner("Generando análisis en tiempo real con Gemini..."):
                     analisis = obtener_explicacion_ia(df_kpis_f)
                     st.markdown(analisis)
             else:
-                st.warning("Configura tu OPENAI_API_KEY en st.secrets para activar esta función.")
+                st.warning("Configura tu API Key en st.secrets para activar esta función.")
     
 
     st.markdown("---")
