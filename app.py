@@ -586,6 +586,8 @@ with tabs[0]:
 
     st.markdown("<br>", unsafe_allow_html=True)
     g1, g2 = st.columns(2)
+   g1, g2 = st.columns(2)
+    
     with g1:
         st.subheader("📊 Control Financiero por Iniciativa")
         fig_barras = go.Figure()
@@ -596,14 +598,14 @@ with tabs[0]:
         fig_barras.update_layout(barmode="group", template="plotly_white", xaxis_tickangle=-30, height=380,
                                   legend=dict(orientation="h", y=1.12))
         st.plotly_chart(fig_barras, width='stretch')
-   with g2:
+
+    with g2:
         st.subheader("🎯 Distribución por ODS (ONU)")
         fig_pie = px.pie(df_kpis_f, names="ODS_Impactado", values="Presupuesto_Asignado_USD", hole=0.45,
                           color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY)
         fig_pie.update_layout(template="plotly_white", height=380, legend=dict(orientation="h", y=-0.25))
         st.plotly_chart(fig_pie, width='stretch')
 
-        # --- PEGAR A PARTIR DE AQUÍ ---
         with st.expander("🤖 **Análisis Ejecutivo ODS (IA)**"):
             if "OPENAI_API_KEY" in st.secrets:
                 with st.spinner("Generando análisis en tiempo real..."):
