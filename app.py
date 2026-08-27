@@ -180,40 +180,39 @@ st.markdown(f"""
 # UTILIDAD DE IA PARA ANÁLISIS DE ODS
 # =================================================================================================
 @st.cache_data
-def obtener_explicacion_ia(df_datos):
-    try:
-        genai.configure(api_key=st.secrets["OPENAI_API_KEY"])
-        
-        columnas_clave = [c for c in ["Iniciativa_ESG", "ODS_Impactado", "Presupuesto_Asignado_USD"] if c in df_datos.columns]
-        resumen_datos = df_datos[columnas_clave].to_string(index=False)
+def explicar_grafica_ia(df_datos, titulo_grafica, contexto_extra=""):
+  try:
+    genai.configure(api_key=st.secrets["OPENAI_API_KEY"])
 
-        prompt = f"""
-        Actúa como un consultor experto en sostenibilidad ESG. 
-        Analiza la siguiente información de la gráfica sobre el impacto y distribución por ODS:
+    # Convertimos los datos a texto (limpiamos si la tabla es grande)
+    resumen_datos = df_datos.to_string(index=False)
+
+    prompt = f"""
+        Actúa como un consultor experto en sostenibilidad ESG y finanzas corporativas. 
+        Analiza los datos de la gráfica titulada: "{titulo_grafica}".
+        {contexto_extra}
         
+        Datos de la gráfica:
         {resumen_datos}
         
-        Proporciona un análisis en español estructurado (máximo 120 palabras):
-        - **Resultado general:** Una oración resumen del presupuesto destinado a ODS.
-        - **Fortaleza:** El ODS con mayor asignación o impacto y qué representa.
-        - **Oportunidad de mejora:** Qué área requiere mayor atención o balance.
+        Proporciona un análisis ejecutivo en español estructurado (máximo 100 palabras):
+        - **Hallazgo clave:** Qué destaca principalmente en esta gráfica.
+        - **Dato crítico:** Un valor, sobrecosto o tendencia importante.
+        - **Recomendación:** Una acción concreta de gestión.
         """
 
-        # Intenta conectarse a los modelos disponibles en orden de prioridad
-        modelos_compatibles = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash']
-        
-        for nombre_modelo in modelos_compatibles:
-            try:
-                model = genai.GenerativeModel(nombre_modelo)
-                response = model.generate_content(prompt)
-                return response.text
-            except Exception:
-                continue # Si falla uno, pasa de inmediato al siguiente modelo
+    modelos = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]
+    for m in modelos:
+      try:
+        model = genai.GenerativeModel(m)
+        response = model.generate_content(prompt)
+        return response.text
+      except Exception:
+        continue
 
-        return "⚠️ No se pudo obtener respuesta con los modelos probados. Verifica los permisos de tu API Key."
-
-    except Exception as e:
-        return f"⚠️ Error de conexión con Gemini: {str(e)}"
+    return "⚠️ No se pudo generar el análisis con los modelos disponibles."
+  except Exception as e:
+    return f"⚠️ Error de conexión: {str(e)}"
 # =================================================================================================
 # 2. CONOCIMIENTO ESTÁTICO POR CERTIFICACIÓN (de la investigación previa del proyecto)
 # =================================================================================================
@@ -597,31 +596,70 @@ with tabs[0]:
     g1, g2 = st.columns(2)
     
     with g1:
-        st.subheader("📊 Control Financiero por Iniciativa")
-        fig_barras = go.Figure()
-        fig_barras.add_trace(go.Bar(x=df_kpis_f["Iniciativa_ESG"], y=df_kpis_f["Presupuesto_Asignado_USD"],
-                                     name="Presupuesto Asignado", marker_color=COLORS["teal"]))
-        fig_barras.add_trace(go.Bar(x=df_kpis_f["Iniciativa_ESG"], y=df_kpis_f["Gasto_Actual_USD"],
-                                     name="Gasto Actual", marker_color=COLORS["green"]))
-        fig_barras.update_layout(barmode="group", template="plotly_white", xaxis_tickangle=-30, height=380,
-                                  legend=dict(orientation="h", y=1.12))
-        st.plotly_chart(fig_barras, width='stretch')
+      st.subheader("📊 Control Financiero por Iniciativa")
+      fig_barras = go.Figure()
+      fig_barras.add_trace(
+          go.Bar(
+              x=df_kpis_f["Iniciativa_ESG"],
+              y=df_kpis_f["Presupuesto_Asignado_USD"],
+              name="Presupuesto Asignado",
+              marker_color=COLORS["teal"],
+          )
+      )
+      fig_barras.add_trace(
+          go.Bar(
+              x=df_kpis_f["Iniciativa_ESG"],
+              y=df_kpis_f["Gasto_Actual_USD"],
+              name="Gasto Actual",
+              marker_color=COLORS["green"],
+          )
+      )
+      fig_barras.update_layout(
+          barmode="group",
+          template="plotly_white",
+          xaxis_tickangle=-30,
+          height=380,
+          legend=dict(orientation="h", y=1.12),
+      )
+      st.plotly_chart(fig_barras, width="stretch")
 
+      # --- DESPLEGABLE IA PARA BARRAS ---
+      with st.expander("🤖 **Análisis de Control Financiero (IA)**"):
+        if "OPENAI_API_KEY" in st.secrets:
+          with st.spinner("Analizando presupuesto vs gasto..."):
+            analisis = explicar_grafica_ia(
+                df_kpis_f[
+                    ["Iniciativa_ESG", "Presupuesto_Asignado_USD", "Gasto_Actual_USD"]
+                ],
+                "Control Financiero por Iniciativa",
+                "Compara la desviación entre Presupuesto Asignado y Gasto Actual.",
+            )
+            st.markdown(analisis)
     with g2:
-        st.subheader("🎯 Distribución por ODS (ONU)")
-        fig_pie = px.pie(df_kpis_f, names="ODS_Impactado", values="Presupuesto_Asignado_USD", hole=0.45,
-                          color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY)
-        fig_pie.update_layout(template="plotly_white", height=380, legend=dict(orientation="h", y=-0.25))
-        st.plotly_chart(fig_pie, width='stretch')
+      st.subheader("🎯 Distribución por ODS (ONU)")
+      fig_pie = px.pie(
+          df_kpis_f,
+          names="ODS_Impactado",
+          values="Presupuesto_Asignado_USD",
+          hole=0.45,
+          color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY,
+      )
+      fig_pie.update_layout(
+          template="plotly_white",
+          height=380,
+          legend=dict(orientation="h", y=-0.25),
+      )
+      st.plotly_chart(fig_pie, width="stretch")
 
-        with st.expander("🤖 **Análisis Ejecutivo ODS (IA)**"):
-            if "OPENAI_API_KEY" in st.secrets:
-                with st.spinner("Generando análisis en tiempo real con Gemini..."):
-                    analisis = obtener_explicacion_ia(df_kpis_f)
-                    st.markdown(analisis)
-            else:
-                st.warning("Configura tu API Key en st.secrets para activar esta función.")
-    
+    with st.expander("🤖 **Análisis de la Gráfica (IA)**"):
+      if "OPENAI_API_KEY" in st.secrets:
+        with st.spinner("Generando análisis..."):
+          st.markdown(
+              explicar_grafica_ia(df_tu_tabla, "Título de tu Gráfica o Pestaña")
+      )
+
+            )
+            st.markdown(analisis)
 
     st.markdown("---")
     with st.expander("📄 Ver datos crudos del Excel / Google Sheet en vivo"):
@@ -773,6 +811,11 @@ for cert in CERT_ORDER:
             fig_cert.update_layout(barmode="group", template="plotly_white", height=320, xaxis_tickangle=-20,
                                     legend=dict(orientation="h", y=1.15))
             st.plotly_chart(fig_cert, width='stretch')
+            with st.expander("🤖 **Análisis de la Gráfica (IA)**"):
+              if "OPENAI_API_KEY" in st.secrets:
+                with st.spinner("Generando análisis..."):
+                  st.markdown(
+                      explicar_grafica_ia(df_tu_tabla, "Título de tu Gráfica o Pestaña")
         else:
             st.info("Sin datos financieros para esta certificación todavía en el Sheet.")
 
