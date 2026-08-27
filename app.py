@@ -37,14 +37,20 @@ st.markdown("""
 URL_KPIS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=1096975805&single=true&output=csv"
 URL_ROADMAP = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=2082257667&single=true&output=csv"
 
-@st.cache_data(ttl=5) # Revisa el Excel cada 5 segundos para actualización en tiempo real
+@st.cache_data(ttl=5)
 def cargar_datos():
     try:
-        df_kpis = pd.read_csv(URL_KPIS)
-        df_roadmap = pd.read_csv(URL_ROADMAP)
+        # skiprows=2 omite el título y la fila en blanco de Google Sheets
+        df_kpis = pd.read_csv(URL_KPIS, skiprows=2)
+        df_roadmap = pd.read_csv(URL_ROADMAP, skiprows=2)
+        
+        # Limpia posibles espacios extra en los nombres de las columnas
+        df_kpis.columns = df_kpis.columns.str.strip()
+        df_roadmap.columns = df_roadmap.columns.str.strip()
+        
         return df_kpis, df_roadmap
     except Exception:
-        # Datos de respaldo en caso de que aún no hayas vinculado la URL de Google Sheets
+        # Datos de respaldo en caso de que la URL aún no esté vinculada o falle
         df_kpis = pd.DataFrame({
             "Iniciativa_ESG": ["Gestión Ambiental (EMS)", "Eficiencia Energética", "Reducción de Residuos", "Matriz de Riesgos (SST)", "Capacitación SST", "Auditoría Final ISO"],
             "Norma_ISO": ["ISO 14001", "ISO 14001", "ISO 14001", "ISO 45001", "ISO 45001", "ISO 14001 / 45001"],
@@ -54,7 +60,25 @@ def cargar_datos():
             "ROI_Proyectado_Pct": [0.22, 0.18, 0.15, 0.12, 0.10, 0.25],
             "ODS_Impactado": ["ODS 13: Acción por el Clima", "ODS 7: Energía Asequible", "ODS 12: Producción Responsable", "ODS 8: Trabajo Decente", "ODS 3: Salud y Bienestar", "ODS 9: Industria e Innovación"]
         })
-
+        
+        df_roadmap = pd.DataFrame({
+            "ID_Tarea": list(range(1, 13)),
+            "Norma_ISO": ["ISO 14001"]*6 + ["ISO 45001"]*6,
+            "Requisito_Documental": [
+                "Política ambiental y alcance del SGA", "Matriz de aspectos e impactos ambientales",
+                "Registro de requisitos legales aplicables", "Objetivos ambientales y plan de acción",
+                "Procedimientos de control operacional", "Plan de respuesta ante emergencias ambientales",
+                "Política de SST y alcance del sistema", "Matriz de peligros y evaluación de riesgos (IPERC)",
+                "Registro de requisitos legales de SST", "Objetivos de SST y plan de acción",
+                "Plan de respuesta ante emergencias SST", "Registro de incidentes y acciones correctivas"
+            ],
+            "Estado": ["Completado", "En Proceso", "Completado", "En Proceso", "Pendiente", "Pendiente",
+                       "Completado", "En Proceso", "Completado", "En Proceso", "Pendiente", "Pendiente"],
+            "Completado": [True, False, True, False, False, False, True, False, True, False, False, False],
+            "ODS_Impactado": ["ODS 13", "ODS 12", "ODS 16", "ODS 9", "ODS 12", "ODS 11",
+                              "ODS 8", "ODS 3", "ODS 8", "ODS 8", "ODS 3", "ODS 8"]
+        })
+        return df_kpis, df_roadmap
         df_roadmap = pd.DataFrame({
             "ID_Tarea": list(range(1, 13)),
             "Norma_ISO": ["ISO 14001"]*6 + ["ISO 45001"]*6,
