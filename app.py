@@ -586,7 +586,6 @@ with tabs[0]:
 
     st.markdown("<br>", unsafe_allow_html=True)
     g1, g2 = st.columns(2)
-   g1, g2 = st.columns(2)
     
     with g1:
         st.subheader("📊 Control Financiero por Iniciativa")
