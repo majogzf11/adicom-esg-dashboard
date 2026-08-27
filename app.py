@@ -16,21 +16,6 @@ ADICOM — Dashboard ESG & Certificaciones
 ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Pro)
 """
 
-# -*- coding: utf-8 -*-
-"""
-ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Corregida)
-"""
-
-# -*- coding: utf-8 -*-
-"""
-ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Pro)
-"""
-
-# -*- coding: utf-8 -*-
-"""
-ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Pro)
-"""
-
 import io
 import json
 import re
@@ -68,11 +53,11 @@ st.set_page_config(
 URL_KPIS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=1096975805&single=true&output=csv"
 URL_ROADMAP = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=2082257667&single=true&output=csv"
 
-POLL_SECONDS = 60  # Sincronización cada 60 segundos para cuidar consumo de datos
+POLL_SECONDS = 60
 STATE_FILE = Path(__file__).parent / "data" / "checklist_state.json"
 
 # =================================================================================================
-# 1. ESTILOS CSS ESTRICTOS EN BLANCO Y NEGRO
+# 1. ESTILOS CSS ESTRICTOS
 # =================================================================================================
 COLORS = {
     "navy": "#0B2E4A",
@@ -119,6 +104,18 @@ st.markdown(f"""
         color: #1E1E1E !important;
     }}
 
+    /* FORZAR TEXTO NEGRO PURO EN GRÁFICOS PLOTLY (SVG) */
+    .js-plotly-plot .plotly text,
+    .js-plotly-plot .plotly .gtitle,
+    .js-plotly-plot .plotly .xtick text,
+    .js-plotly-plot .plotly .ytick text,
+    .js-plotly-plot .plotly .legendtext,
+    .js-plotly-plot .plotly .annotation-text {{
+        fill: #000000 !important;
+        color: #000000 !important;
+        font-weight: 600 !important;
+    }}
+
     /* Botones con bordes suaves */
     button, div[data-testid="stButton"] > button {{
         background-color: #F8F9FA !important;
@@ -133,7 +130,7 @@ st.markdown(f"""
         border-color: #ADB5BD !important;
     }}
 
-    /* Selectbox y campos desplegables con fondo blanco */
+    /* Selectbox y campos desplegables */
     div[data-baseweb="select"] > div,
     div[data-baseweb="base-input"] input {{
         background-color: #FFFFFF !important;
@@ -141,14 +138,15 @@ st.markdown(f"""
         border-color: #CED4DA !important;
     }}
 
-    /* Letras blancas para la caja de texto / prompt de Gemini */
+    /* Texto blanco exclusivo para el prompt/caja de texto de Gemini */
     div[data-baseweb="textarea"] textarea,
     div[data-baseweb="base-input"] textarea,
     textarea {{
         color: #FFFFFF !important;
+        background-color: #1E1E1E !important;
     }}
 
-    /* Menús flotantes (Popovers / Dropdowns) */
+    /* Menús flotantes */
     [data-baseweb="popover"], [data-baseweb="menu"], ul[role="listbox"], li[role="option"] {{
         background-color: #FFFFFF !important;
         color: #1E1E1E !important;
@@ -225,12 +223,14 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
+# Configuración global de fuentes negras para Plotly
+PLOTLY_FONT_BLACK = dict(color="#000000", family="Segoe UI, sans-serif")
+
 # =================================================================================================
-# 2. MOTOR DE IA OPTIMIZADO CON CACHÉ (A Demanda)
+# 2. MOTOR DE IA OPTIMIZADO CON CACHÉ
 # =================================================================================================
 @st.cache_data(ttl=600, show_spinner=False)
 def explicar_grafica_ia(df_datos: pd.DataFrame, titulo_grafica: str, contexto_extra: str = "") -> str:
-    """Genera análisis ejecutivo con Gemini optimizado con caché para evitar saturar la API."""
     if "OPENAI_API_KEY" not in st.secrets:
         return "⚠️ Clave de API no configurada en `st.secrets`."
 
@@ -394,7 +394,7 @@ CERT_INFO = {
 CERT_ORDER = ["ISO 14001", "ISO 45001", "PROFEPA", "CSIA", "Distintivo ESR"]
 
 # =================================================================================================
-# 4. PARSEO ROBUSTO Y CÁLCULO DE FORMULAS EN PYTHON
+# 4. PARSEO ROBUSTO Y CÁLCULO DE FÓRMULAS
 # =================================================================================================
 def _parse_locale_number(value):
     if value is None or pd.isna(value):
@@ -412,10 +412,6 @@ def _parse_locale_number(value):
         return float(s)
     except ValueError:
         return 0.0
-
-def _parse_locale_percent(value):
-    n = _parse_locale_number(value)
-    return n / 100.0 if abs(n) > 1 else n
 
 def _parse_bool(value):
     if isinstance(value, bool):
@@ -443,7 +439,6 @@ def smart_read_csv(url: str, must_have_col: str, timeout: int = 12) -> Optional[
 
 @st.cache_data(ttl=POLL_SECONDS, show_spinner=False)
 def cargar_datos():
-    """Carga y procesa datos, aplicando FÓRMULAS AUTOMÁTICAS en Python."""
     df_kpis = smart_read_csv(URL_KPIS, "Iniciativa_ESG")
     df_roadmap = smart_read_csv(URL_ROADMAP, "ID_Tarea")
 
@@ -478,7 +473,6 @@ def cargar_datos():
                               "ODS 8", "ODS 3", "ODS 8", "ODS 8", "ODS 3", "ODS 8"],
         })
 
-    # Limpieza de montos numéricos
     for col in ["Presupuesto_Asignado_USD", "Gasto_Actual_USD", "Ahorro_Generado_USD"]:
         if col in df_kpis.columns:
             df_kpis[col] = df_kpis[col].apply(_parse_locale_number)
@@ -487,7 +481,6 @@ def cargar_datos():
 
     df_kpis = df_kpis[df_kpis["Iniciativa_ESG"].astype(str).str.upper() != "TOTAL"].copy()
 
-    # --- FÓRMULAS DINÁMICAS EN PYTHON (Recálculo automático) ---
     df_kpis["Saldo_Disponible_USD"] = df_kpis["Presupuesto_Asignado_USD"] - df_kpis["Gasto_Actual_USD"]
     df_kpis["Pct_Ejecucion"] = (df_kpis["Gasto_Actual_USD"] / df_kpis["Presupuesto_Asignado_USD"].replace(0, 1)) * 100
     df_kpis["ROI_Calculado_Pct"] = (df_kpis["Ahorro_Generado_USD"] / df_kpis["Gasto_Actual_USD"].replace(0, 1)) * 100
@@ -513,11 +506,10 @@ def cargar_datos():
     return df_kpis, df_roadmap, fuente, timestamp
 
 # =================================================================================================
-# 5. ESTADO GLOBAL COMPARTIDO (Sincronización Multiusuario en Tiempo Real)
+# 5. ESTADO GLOBAL COMPARTIDO
 # =================================================================================================
 @st.cache_resource
 def get_global_checklist_state() -> dict:
-    """Carga un estado compartido en memoria para TODOS los usuarios de la app."""
     if STATE_FILE.exists():
         try:
             return json.loads(STATE_FILE.read_text(encoding="utf-8"))
@@ -652,14 +644,24 @@ with tabs[0]:
             barmode="group",
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
-            font=dict(color="#000000"),
-            xaxis=dict(tickangle=-25, gridcolor="#E9ECEF"),
-            yaxis=dict(gridcolor="#E9ECEF"),
+            font=PLOTLY_FONT_BLACK,
+            title_font=dict(color="#000000"),
+            xaxis=dict(
+                tickangle=-25, 
+                gridcolor="#E9ECEF",
+                tickfont=dict(color="#000000", size=11),
+                title_font=dict(color="#000000")
+            ),
+            yaxis=dict(
+                gridcolor="#E9ECEF",
+                tickfont=dict(color="#000000", size=11),
+                title_font=dict(color="#000000")
+            ),
             height=370,
-            legend=dict(orientation="h", y=1.12),
+            legend=dict(orientation="h", y=1.12, font=dict(color="#000000")),
             margin=dict(l=20, r=20, t=30, b=50)
         )
-        st.plotly_chart(fig_barras, use_container_width=True)
+        st.plotly_chart(fig_barras, use_container_width=True, theme=None)
 
         with st.expander("🤖 **Análisis de Control Financiero (Gemini IA)**"):
             if st.button("✨ Generar Análisis Financiero con IA", key="btn_ia_fin"):
@@ -682,12 +684,12 @@ with tabs[0]:
         fig_pie.update_layout(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
-            font=dict(color="#000000"),
+            font=PLOTLY_FONT_BLACK,
             height=370,
-            legend=dict(orientation="h", y=-0.25),
+            legend=dict(orientation="h", y=-0.25, font=dict(color="#000000")),
             margin=dict(l=20, r=20, t=30, b=50)
         )
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, use_container_width=True, theme=None)
 
         with st.expander("🤖 **Análisis Ejecutivo ODS (Gemini IA)**"):
             if st.button("✨ Generar Análisis ODS con IA", key="btn_ia_ods"):
@@ -705,7 +707,7 @@ with tabs[0]:
                               "Ahorro_Generado_USD", "ROI_Calculado_Pct"]], use_container_width=True)
 
 # -------------------------------------------------------------------------------------------
-# TAB 1: OBJETIVOS DE DESARROLLO SOSTENIBLE (ODS) - NUEVO SECTOR DEDICADO
+# TAB 1: OBJETIVOS DE DESARROLLO SOSTENIBLE (ODS)
 # -------------------------------------------------------------------------------------------
 with tabs[1]:
     st.markdown("### 🇺🇳 Marco de Sostenibilidad — Objetivos de Desarrollo Sostenible (ONU)")
@@ -714,7 +716,6 @@ with tabs[1]:
     Adicom integra estos objetivos dentro de su estrategia core de ingeniería, automatización y certificaciones.
     """)
 
-    # Distribución de presupuesto por ODS acumulado
     ods_summary = df_kpis.groupby("ODS_Impactado").agg(
         Presupuesto_Total=("Presupuesto_Asignado_USD", "sum"),
         Iniciativas_Contadas=("Iniciativa_ESG", "count")
@@ -735,11 +736,13 @@ with tabs[1]:
         fig_ods_bar.update_layout(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
-            font=dict(color="#000000"),
+            font=PLOTLY_FONT_BLACK,
+            xaxis=dict(tickfont=dict(color="#000000"), title_font=dict(color="#000000"), gridcolor="#E9ECEF"),
+            yaxis=dict(tickfont=dict(color="#000000"), title_font=dict(color="#000000")),
             height=340,
             coloraxis_showscale=False
         )
-        st.plotly_chart(fig_ods_bar, use_container_width=True)
+        st.plotly_chart(fig_ods_bar, use_container_width=True, theme=None)
 
     with col_ods2:
         st.markdown("#### 🎯 Resumen de Impacto Directo")
@@ -763,7 +766,7 @@ with tabs[1]:
             """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------------------------------------
-# TAB 2: CONSULTOR ESTRATÉGICO IA (GEMINI ADVISOR) - NUEVA HERRAMIENTA
+# TAB 2: CONSULTOR ESTRATÉGICO IA (GEMINI ADVISOR)
 # -------------------------------------------------------------------------------------------
 with tabs[2]:
     st.markdown("### 🤖 Asistente Virtual Ejecutivo — Gemini IA Strategist")
@@ -813,7 +816,7 @@ with tabs[2]:
                 st.warning("Por favor ingresa una pregunta o selecciona una plantilla.")
 
 # -------------------------------------------------------------------------------------------
-# TAB 3: MATRIZ Y SIMULADOR DE PRESUPUESTO - NUEVA SECCIÓN
+# TAB 3: MATRIZ Y SIMULADOR DE PRESUPUESTO
 # -------------------------------------------------------------------------------------------
 with tabs[3]:
     st.markdown("### ⚖️ Matriz Comparativa de Certificaciones")
@@ -966,13 +969,13 @@ for cert in CERT_ORDER:
                 barmode="group",
                 paper_bgcolor="#FFFFFF",
                 plot_bgcolor="#FFFFFF",
-                font=dict(color="#000000"),
+                font=PLOTLY_FONT_BLACK,
                 height=320,
-                xaxis=dict(tickangle=-20, gridcolor="#E9ECEF"),
-                yaxis=dict(gridcolor="#E9ECEF"),
-                legend=dict(orientation="h", y=1.15)
+                xaxis=dict(tickangle=-20, gridcolor="#E9ECEF", tickfont=dict(color="#000000"), title_font=dict(color="#000000")),
+                yaxis=dict(gridcolor="#E9ECEF", tickfont=dict(color="#000000"), title_font=dict(color="#000000")),
+                legend=dict(orientation="h", y=1.15, font=dict(color="#000000"))
             )
-            st.plotly_chart(fig_cert, use_container_width=True)
+            st.plotly_chart(fig_cert, use_container_width=True, theme=None)
 
             with st.expander("🤖 **Análisis Financiero de Certificación (Gemini IA)**"):
                 if st.button(f"✨ Analizar {cert} con IA", key=f"btn_ia_{cert}"):
