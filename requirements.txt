@@ -6,6 +6,8 @@ openpyxl>=3.1
 streamlit-autorefresh>=1.0.1
 openai
 streamlit-autorefresh
+google-generativeai
+streamlit-autorefresh
 
 # Opcionales — solo si activas la escritura real hacia Google Sheets (ver README_DASHBOARD.md)
 # gspread>=6.0
