@@ -9,23 +9,7 @@ Original file is located at
 
 # -*- coding: utf-8 -*-
 """
-ADICOM — Dashboard ESG & Certificaciones (ISO 14001, ISO 45001, PROFEPA, CSIA, Distintivo ESR)
-=================================================================================================
-Lee en vivo desde Google Sheets (publicado como CSV), muestra un apartado por certificación con
-un "camino" de niveles/fases que se desbloquean al completar el checklist de la fase anterior,
-y persiste el avance del checklist en un archivo local para que sobreviva a un refresh de página.
-
-Cómo funciona la persistencia (importante, léelo):
-- La fuente de verdad para PRESUPUESTOS y datos generales es siempre tu Google Sheet (se relee
-  cada POLL_SECONDS segundos).
-- La fuente de verdad para el CHECKLIST (qué está marcado) es un archivo local
-  `data/checklist_state.json` en el servidor donde corra esta app. Al cargar por primera vez una
-  tarea, se "siembra" con el valor que tenga la columna Completado de tu Sheet; después de eso,
-  cada clic en un checkbox se guarda de inmediato en ese archivo y sobrevive a un refresh de
-  navegador (F5) porque no vive en el navegador sino en el servidor.
-- Si además quieres que marcar un checkbox aquí actualice también la celda real en Google Sheets
-  (sync verdaderamente bidireccional), activa la sección OPCIONAL "Escritura en Google Sheets"
-  más abajo con una cuenta de servicio de Google (ver README_DASHBOARD.md).
+ADICOM — Dashboard ESG & Certificaciones 
 """
 
 import io
