@@ -4,6 +4,8 @@ plotly>=5.20
 requests>=2.31
 openpyxl>=3.1
 streamlit-autorefresh>=1.0.1
+openai
+streamlit-autorefresh
 
 # Opcionales — solo si activas la escritura real hacia Google Sheets (ver README_DASHBOARD.md)
 # gspread>=6.0
