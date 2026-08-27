@@ -627,14 +627,15 @@ with tabs[0]:
             marker_color=COLORS["green"]
         ))
         fig_barras.update_layout(
-            barmode="group",
+            template="plotly_white",
+            title_font_color="#1E1E1E",
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
             font=dict(color="#1E1E1E"),
-            xaxis=dict(tickangle=-25, gridcolor="#E9ECEF"),
-            yaxis=dict(gridcolor="#E9ECEF"),
+            xaxis=dict(tickangle=-25, gridcolor="#E9ECEF", title_font=dict(color="#1E1E1E")),
+            yaxis=dict(gridcolor="#E9ECEF", title_font=dict(color="#1E1E1E")),
+            legend=dict(orientation="h", y=1.12, font=dict(color="#1E1E1E")),
             height=370,
-            legend=dict(orientation="h", y=1.12),
             margin=dict(l=20, r=20, t=30, b=50)
         )
         st.plotly_chart(fig_barras, use_container_width=True)
