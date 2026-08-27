@@ -77,43 +77,55 @@ PLOTLY_TEMPLATE_COLORWAY = [COLORS["teal"], COLORS["darkTeal"], COLORS["green"],
 st.markdown(f"""
 <style>
     html, body, [class*="css"] {{ font-family: 'Calibri', 'Segoe UI', sans-serif; }}
-    .main {{ background-color: #FFFFFF; }}
+    
+    /* Fondo general totalmente blanco */
+    .stApp, [data-testid="stAppViewContainer"], .main {{
+        background-color: #FFFFFF !important;
+    }}
 
-    /* Texto general en negro */
-    p, li, label, .stMarkdown {{ color: #000000 !important; }}
+    /* Texto general, títulos, subtítulos, tablas, pestañas y casillas en negro */
+    h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, th, td, [data-baseweb="tab"] {{
+        color: #000000 !important;
+    }}
 
+    /* Fuerza el texto de las tablas y dataframes de Streamlit a negro */
+    [data-testid="stDataFrame"] *, [data-testid="stTable"] * {{
+        color: #000000 !important;
+    }}
+
+    /* Mantiene protegidas las tarjetas oscuras para que sus textos sigan siendo visibles */
     .adicom-hero {{
         background: linear-gradient(135deg, {COLORS['navy']} 0%, {COLORS['darkTeal']} 100%);
         padding: 28px 32px; border-radius: 14px; margin-bottom: 22px;
     }}
-    .adicom-hero h1 {{ color: #FFFFFF; font-size: 2.1rem; font-weight: 800; margin: 0; }}
-    .adicom-hero p {{ color: #C9DCD8; font-size: 1.0rem; margin-top: 6px; }}
+    .adicom-hero h1 {{ color: #FFFFFF !important; font-size: 2.1rem; font-weight: 800; margin: 0; }}
+    .adicom-hero p {{ color: #C9DCD8 !important; font-size: 1.0rem; margin-top: 6px; }}
 
     div[data-testid="stMetric"] {{
         background-color: {COLORS['lightGray']};
         padding: 16px 18px; border-radius: 12px;
         border: 1px solid #E3E7E6;
     }}
-    div[data-testid="stMetricLabel"] {{ color: #000000; }}
-    div[data-testid="stMetricValue"] {{ color: #000000; }}
+    div[data-testid="stMetricLabel"] {{ color: #000000 !important; }}
+    div[data-testid="stMetricValue"] {{ color: #000000 !important; }}
 
     .cert-card {{
         background-color: {COLORS['lightGray']};
         border-radius: 12px; padding: 18px 20px; height: 100%;
     }}
-    .cert-card h4 {{ margin-top: 0; color: #000000; }}
+    .cert-card h4 {{ margin-top: 0; color: #000000 !important; }}
     .doc-chip {{
         display: inline-block; background-color: #FFFFFF; border: 1px solid #DCE4E2;
         border-radius: 8px; padding: 6px 12px; margin: 4px 6px 4px 0; font-size: 0.85rem;
-        color: #000000;
+        color: #000000 !important;
     }}
-    .badge-done {{ color: #FFFFFF; background-color: {COLORS['green']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
-    .badge-progress {{ color: #FFFFFF; background-color: {COLORS['teal']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
-    .badge-locked {{ color: {COLORS['ink']}; background-color: {COLORS['lock']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
+    .badge-done {{ color: #FFFFFF !important; background-color: {COLORS['green']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
+    .badge-progress {{ color: #FFFFFF !important; background-color: {COLORS['teal']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
+    .badge-locked {{ color: {COLORS['ink']} !important; background-color: {COLORS['lock']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
 
     .celebrate {{
         background: linear-gradient(135deg, {COLORS['green']} 0%, {COLORS['teal']} 100%);
-        padding: 22px; border-radius: 14px; text-align: center; color: white;
+        padding: 22px; border-radius: 14px; text-align: center; color: white !important;
         font-size: 1.2rem; font-weight: 700; margin: 14px 0 6px 0;
     }}
     footer, #MainMenu {{ visibility: hidden; }}
