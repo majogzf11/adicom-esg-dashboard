@@ -78,17 +78,28 @@ st.markdown(f"""
 <style>
     html, body, [class*="css"] {{ font-family: 'Calibri', 'Segoe UI', sans-serif; }}
     
-    /* Fondo general totalmente blanco */
-    .stApp, [data-testid="stAppViewContainer"], .main {{
+    /* Fondo general y menú lateral (Sidebar) totalmente blanco */
+    .stApp, [data-testid="stAppViewContainer"], .main, [data-testid="stSidebar"] {{
         background-color: #FFFFFF !important;
     }}
 
-    /* Texto general, títulos, subtítulos, tablas, pestañas y casillas en negro */
-    h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, th, td, [data-baseweb="tab"] {{
+    /* Texto general, títulos, tablas, pestañas y menú lateral en negro */
+    h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, th, td, [data-baseweb="tab"], [data-testid="stSidebar"] * {{
         color: #000000 !important;
     }}
 
-    /* Fuerza el texto de las tablas y dataframes de Streamlit a negro */
+    /* Fondo y texto claro para todos los botones de Streamlit */
+    button, div[data-testid="stButton"] > button {{
+        background-color: #F0F2F6 !important;
+        color: #000000 !important;
+        border: 1px solid #DCE4E2 !important;
+    }}
+    button:hover, div[data-testid="stButton"] > button:hover {{
+        background-color: #E2E8E6 !important;
+        color: #000000 !important;
+    }}
+
+    /* Fuerza el texto de las tablas y dataframes a negro */
     [data-testid="stDataFrame"] *, [data-testid="stTable"] * {{
         color: #000000 !important;
     }}
