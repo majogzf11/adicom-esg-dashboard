@@ -11,10 +11,6 @@ Original file is located at
 """
 ADICOM — Dashboard ESG & Certificaciones 
 """
-# -*- coding: utf-8 -*-
-"""
-ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Pro)
-"""
 
 import io
 import json
@@ -231,31 +227,40 @@ PLOTLY_FONT_BLACK = dict(color="#000000", family="Segoe UI, sans-serif")
 # 2. MOTOR DE IA OPTIMIZADO CON FALLBACK Y CACHÉ
 # =================================================================================================
 def llamar_gemini_fallback(prompt_texto: str) -> str:
-    """Ejecuta la consulta en Gemini capturando errores explícitos para evitar bloqueos."""
+    """Detecta automáticamente los modelos activos de Gemini y ejecuta la consulta."""
     api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
     if not api_key:
         return "⚠️ Error: No se encontró la clave `GEMINI_API_KEY` en st.secrets."
 
     genai.configure(api_key=api_key)
-    
-    # Probar modelo principal rápidamente
-    modelos = ["gemini-1.5-flash", "gemini-2.0-flash"]
-    errores = []
 
-    for m in modelos:
+    # 1. Modelos actualizados recomendados por Google
+    modelos_candidatos = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro-latest"]
+
+    # 2. Búsqueda dinámica de modelos disponibles en tu cuenta
+    try:
+        modelos_servidor = [
+            m.name.replace("models/", "")
+            for m in genai.list_models()
+            if "generateContent" in m.supported_generation_methods
+        ]
+        # Priorizar modelos dinámicos encontrados
+        modelos_candidatos = list(dict.fromkeys(modelos_candidatos + modelos_servidor))
+    except Exception:
+        pass
+
+    errores = []
+    for m in modelos_candidatos:
         try:
             model = genai.GenerativeModel(m)
-            # Generar contenido
             response = model.generate_content(prompt_texto)
             if response and response.text:
                 return response.text
         except Exception as e:
-            # Guardar el error real para no dejar al usuario a ciegas
-            errores.append(f"Modelo `{m}`: {str(e)}")
+            errores.append(f"`{m}`: {str(e)}")
             continue
 
-    return f"⚠️ Error al conectar con Gemini:\n\n" + "\n".join(errores)
-
+    return "⚠️ Error de conexión con los modelos de Gemini:\n\n" + "\n".join(errores[:3])
 @st.cache_data(ttl=600, show_spinner=False)
 def explicar_grafica_ia(df_datos: pd.DataFrame, titulo_grafica: str, contexto_extra: str = "") -> str:
     resumen_datos = df_datos.to_string(index=False)
