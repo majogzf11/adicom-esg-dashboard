@@ -62,6 +62,7 @@ COLORS = {
     "white": "#FFFFFF",
     "warn": "#C77B1E",
     "lock": "#B9C2C0",
+    "ink": "#233238"
 }
 
 CERT_ACCENT = {
@@ -77,7 +78,7 @@ PLOTLY_TEMPLATE_COLORWAY = [COLORS["teal"], COLORS["darkTeal"], COLORS["green"],
 st.markdown(f"""
 <style>
     html, body, [class*="css"] {{ font-family: 'Calibri', 'Segoe UI', sans-serif; }}
-    .main {{ background-color: #FFFFFF; }}
+    .main {{ background-color: #0B2E4A; }}
 
     .adicom-hero {{
         background: linear-gradient(135deg, {COLORS['navy']} 0%, {COLORS['darkTeal']} 100%);
