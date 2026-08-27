@@ -182,9 +182,7 @@ st.markdown(f"""
 @st.cache_data
 def obtener_explicacion_ia(df_datos):
     try:
-        # Usa el nombre anterior directamente con la librería de Google
         genai.configure(api_key=st.secrets["OPENAI_API_KEY"])
-        model = genai.GenerativeModel('gemini-1.5-flash')
         
         columnas_clave = [c for c in ["Iniciativa_ESG", "ODS_Impactado", "Presupuesto_Asignado_USD"] if c in df_datos.columns]
         resumen_datos = df_datos[columnas_clave].to_string(index=False)
@@ -201,8 +199,19 @@ def obtener_explicacion_ia(df_datos):
         - **Oportunidad de mejora:** Qué área requiere mayor atención o balance.
         """
 
-        response = model.generate_content(prompt)
-        return response.text
+        # Intenta conectarse a los modelos disponibles en orden de prioridad
+        modelos_compatibles = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash']
+        
+        for nombre_modelo in modelos_compatibles:
+            try:
+                model = genai.GenerativeModel(nombre_modelo)
+                response = model.generate_content(prompt)
+                return response.text
+            except Exception:
+                continue # Si falla uno, pasa de inmediato al siguiente modelo
+
+        return "⚠️ No se pudo obtener respuesta con los modelos probados. Verifica los permisos de tu API Key."
+
     except Exception as e:
         return f"⚠️ Error de conexión con Gemini: {str(e)}"
 # =================================================================================================
