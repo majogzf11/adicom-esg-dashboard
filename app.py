@@ -7,457 +7,698 @@ Original file is located at
     https://colab.research.google.com/drive/1ROfKHxt0mp7pg_hb2LhEsREzL8TW86Wi
 """
 
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import sqlite3
-import time
+# -*- coding: utf-8 -*-
+"""
+ADICOM — Dashboard ESG & Certificaciones (ISO 14001, ISO 45001, PROFEPA, CSIA, Distintivo ESR)
+=================================================================================================
+Lee en vivo desde Google Sheets (publicado como CSV), muestra un apartado por certificación con
+un "camino" de niveles/fases que se desbloquean al completar el checklist de la fase anterior,
+y persiste el avance del checklist en un archivo local para que sobreviva a un refresh de página.
 
-# ==========================================
-# 1. CONFIGURACIÓN DE LA PÁGINA Y ESTILO
-# ==========================================
+Cómo funciona la persistencia (importante, léelo):
+- La fuente de verdad para PRESUPUESTOS y datos generales es siempre tu Google Sheet (se relee
+  cada POLL_SECONDS segundos).
+- La fuente de verdad para el CHECKLIST (qué está marcado) es un archivo local
+  `data/checklist_state.json` en el servidor donde corra esta app. Al cargar por primera vez una
+  tarea, se "siembra" con el valor que tenga la columna Completado de tu Sheet; después de eso,
+  cada clic en un checkbox se guarda de inmediato en ese archivo y sobrevive a un refresh de
+  navegador (F5) porque no vive en el navegador sino en el servidor.
+- Si además quieres que marcar un checkbox aquí actualice también la celda real en Google Sheets
+  (sync verdaderamente bidireccional), activa la sección OPCIONAL "Escritura en Google Sheets"
+  más abajo con una cuenta de servicio de Google (ver README_DASHBOARD.md).
+"""
+
+import io
+import json
+import re
+import time
+from pathlib import Path
+from typing import Optional
+
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import requests
+import streamlit as st
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+    HAS_AUTOREFRESH = True
+except ImportError:
+    HAS_AUTOREFRESH = False
+
+# =================================================================================================
+# 0. CONFIGURACIÓN GENERAL
+# =================================================================================================
 st.set_page_config(
-    page_title="ADICOM | Certifications Dashboard",
-    page_icon="🎯",
+    page_title="Adicom · Dashboard ESG & Certificaciones",
+    page_icon="🌱",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# URLs base de Google Sheets (Publicadas en CSV)
-URL_KPIS_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=1096975805&single=true&output=csv"
-URL_ROADMAP_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=2082257667&single=true&output=csv"
+# --- Pega aquí los links "Publicar en la web" (CSV) de tu Google Sheet ---
+URL_KPIS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=1096975805&single=true&output=csv"
+URL_ROADMAP = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=2082257667&single=true&output=csv"
 
-# Inyección de estilos CSS Modernos (SaaS Dashboard Style)
-st.markdown("""
-    <style>
-    /* Fondo principal y tipografía */
-    .stApp {
-        background-color: #f0f4f8;
-        font-family: 'Inter', 'Segoe UI', sans-serif;
-    }
-    
-    /* Headers de colores */
-    h1, h2, h3 {
-        color: #102a43 !important;
-        font-weight: 700 !important;
-    }
-    
-    /* Tarjetas principales (Los 4 Cuadrantes) */
-    .quadrant-card {
-        background-color: #ffffff;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        border-top: 4px solid #334e68;
-        height: 100%;
-        margin-bottom: 20px;
-    }
-    
-    /* Variaciones de color para el borde superior de los cuadrantes */
-    .card-info { border-top-color: #2cb1bc; }
-    .card-roadmap { border-top-color: #f59f00; }
-    .card-advantages { border-top-color: #82c91e; }
-    .card-kpis { border-top-color: #e03131; }
-    
-    /* Títulos de sección */
-    .section-title {
-        color: #334e68;
-        text-transform: uppercase;
-        font-size: 0.9rem;
-        letter-spacing: 1.5px;
-        margin-bottom: 15px;
-        border-bottom: 2px solid #f0f4f8;
-        padding-bottom: 8px;
-        font-weight: bold;
-    }
+POLL_SECONDS = 15          # cada cuánto se relee el Google Sheet
+STATE_FILE = Path(__file__).parent / "data" / "checklist_state.json"
 
-    /* Badges / Etiquetas (Arregladas) */
-    .custom-badge-adicom { 
-        background-color: #e6fcfa; 
-        color: #0c8599; 
-        padding: 4px 10px; 
-        border-radius: 12px; 
-        font-size: 0.8rem; 
-        font-weight: bold; 
-        margin-bottom: 5px; 
-        display: inline-block;
-    }
-    .custom-badge-client { 
-        background-color: #f3f0ff; 
-        color: #6741d9; 
-        padding: 4px 10px; 
-        border-radius: 12px; 
-        font-size: 0.8rem; 
-        font-weight: bold; 
-        margin-bottom: 5px; 
-        display: inline-block;
-    }
-    
-    /* Checkbox personalizado */
-    .stCheckbox label p { font-size: 15px !important; color: #334e68 !important; font-weight: 500;}
-    
-    /* Timeline Visual mejorado (Ocultando los botones de radio estándar de Streamlit para hacerlos parecer nodos) */
-    div.row-widget.stRadio > div {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        position: relative;
-        width: 100%;
-        padding: 10px 0;
-    }
-    /* Línea conectora del timeline */
-    div.row-widget.stRadio > div::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background-color: #d9e2ec;
-        z-index: 0;
-        transform: translateY(-50%);
-    }
-    /* Estilo de los "nodos" (opciones del radio) */
-    div.row-widget.stRadio > div > label {
-        position: relative;
-        z-index: 1;
-        background-color: #ffffff;
-        padding: 5px 15px;
-        border-radius: 20px;
-        border: 2px solid #d9e2ec;
-        margin-right: 10px;
-        transition: all 0.3s ease;
-    }
-    div.row-widget.stRadio > div > label:hover {
-        border-color: #f59f00;
-        background-color: #fff9db;
-    }
-    /* Estilo del nodo seleccionado (la bolita de Streamlit se encarga, pero mejoramos el contenedor) */
-    div.row-widget.stRadio > div > label[data-baseweb="radio"] {
-        /* Puedes añadir más estilos si inspeccionas el DOM exacto, pero Streamlit maneja el color principal vía theming general */
-    }
-
-    /* Ajuste de métricas */
-    [data-testid="stMetricValue"] { font-size: 1.8rem !important; color: #102a43; }
-    [data-testid="stMetricLabel"] { font-size: 0.9rem !important; color: #627d98; }
-    </style>
-""", unsafe_allow_html=True)
-
-# ==========================================
-# 2. BASE DE DATOS LOCAL (PERSISTENCIA DE CHECKLIST)
-# ==========================================
-conn = sqlite3.connect('adicom_roadmap_v2.db', check_same_thread=False)
-c = conn.cursor()
-c.execute('CREATE TABLE IF NOT EXISTS checklist_v2 (task_id TEXT PRIMARY KEY, cert TEXT, status INTEGER)')
-conn.commit()
-
-def get_task_status(task_id, default_val=False):
-    c.execute("SELECT status FROM checklist_v2 WHERE task_id=?", (task_id,))
-    res = c.fetchone()
-    return bool(res[0]) if res else default_val
-
-def set_task_status(task_id, cert, status):
-    new_status = 1 if status else 0
-    c.execute("REPLACE INTO checklist_v2 (task_id, cert, status) VALUES (?, ?, ?)", (task_id, cert, new_status))
-    conn.commit()
-
-def update_task_callback(task_id, cert):
-    val = st.session_state[task_id]
-    set_task_status(task_id, cert, val)
-
-# ==========================================
-# 3. DATOS Y GOOGLE SHEETS
-# ==========================================
-@st.cache_data(ttl=5) 
-def load_data_from_google_sheets(url_base):
-    try:
-        timestamp_url = f"{url_base}&_nocache={int(time.time())}"
-        df = pd.read_csv(timestamp_url)
-        df.columns = df.columns.str.strip()
-        return df
-    except Exception as e:
-        return None
-
-df_kpis = load_data_from_google_sheets(URL_KPIS_BASE)
-df_roadmap = load_data_from_google_sheets(URL_ROADMAP_BASE)
-
-data_kpis_board = pd.DataFrame({
-    'Concepto': ['Inv. Inicial', 'ROI Esperado', 'Costo Operativo', 'Ahorro Proyectado'],
-    'ISO_14001': [12000, 35, 2500, 18500],
-    'ISO_45001': [15000, 28, 3000, 14200]
-})
-
-data_trends = pd.DataFrame({
-    'Mes': ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'],
-    'Ahorro Generado': [10, 15, 25, 40, 55, 75],
-    'Costo Implementación': [50, 45, 30, 20, 15, 10]
-})
-
-ROADMAP_DATA = {
-    "ISO 14001": {
-        "1. Diagnóstico": ["Mapeo de Procesos", "Análisis GAP Medioambiental", "Definición Política ISO 14001"],
-        "2. Evaluación": ["Matriz de Impactos Ambientales", "Registro Requisitos Legales", "KPIs Ambientales"],
-        "3. Operación": ["Capacitación de Personal", "Control de Residuos", "Simulacros de Emergencia"],
-        "4. Certificación": ["Auditoría Interna", "Acciones Correctivas", "Auditoría Externa (Certificadora)"]
-    },
-    "ISO 45001": {
-        "1. Diagnóstico": ["Inspección de Instalaciones", "Análisis GAP Seguridad", "Definición Política SST"],
-        "2. Evaluación": ["Matriz IPERC (Riesgos)", "Exámenes Médicos Ocupacionales", "Requisitos Legales STPS"],
-        "3. Operación": ["Entrega EPP", "Capacitación Brigadas", "Señalización"],
-        "4. Certificación": ["Auditoría Interna SST", "Revisión por la Dirección", "Auditoría Externa"]
-    }
+# =================================================================================================
+# 1. PALETA Y ESTILOS — colores de marca Adicom
+# =================================================================================================
+COLORS = {
+    "navy": "#0B2E4A",
+    "darkTeal": "#0E4C47",
+    "teal": "#1B7A72",
+    "green": "#2FAE8C",
+    "lightGray": "#F3F5F4",
+    "ink": "#233238",
+    "gray": "#6B7573",
+    "white": "#FFFFFF",
+    "warn": "#C77B1E",
+    "lock": "#B9C2C0",
 }
 
-# ==========================================
-# 4. BARRA LATERAL
-# ==========================================
-with st.sidebar:
-    st.markdown("""
-        <div style='text-align: center; padding: 10px 0 20px 0;'>
-            <h1 style='color: #102a43; font-size: 28px; margin-bottom: 0;'>ADICOM</h1>
-            <p style='color: #2cb1bc; font-weight: 600; letter-spacing: 2px; font-size: 12px; margin-top: 0;'>CERTIFICATION DASHBOARD</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    menu = st.radio(
-        "SELECCIONA VISTA:",
-        ["📘 ISO 14001", "📙 ISO 45001", "✅ Checklist Global", "🔄 Datos"]
-    )
-    
-    st.markdown("---")
-    st.markdown("**Progreso Global:**")
-    c.execute("SELECT COUNT(*) FROM checklist_v2")
-    totales = c.fetchone()[0] or 1
-    c.execute("SELECT COUNT(*) FROM checklist_v2 WHERE status=1")
-    hechas = c.fetchone()[0] or 0
-    progreso = int((hechas / max(totales, 1)) * 100)
-    st.progress(progreso / 100.0)
-    st.caption(f"{hechas} tareas de {totales} ({progreso}%)")
+CERT_ACCENT = {
+    "ISO 14001": COLORS["teal"],
+    "ISO 45001": COLORS["darkTeal"],
+    "PROFEPA": "#3F7E44",
+    "CSIA": COLORS["navy"],
+    "Distintivo ESR": COLORS["green"],
+}
 
-# ==========================================
-# 5. RENDERIZADO DE LAS VISTAS
-# ==========================================
+PLOTLY_TEMPLATE_COLORWAY = [COLORS["teal"], COLORS["darkTeal"], COLORS["green"], COLORS["navy"], "#8AB6AE"]
 
-if menu in ["📘 ISO 14001", "📙 ISO 45001"]:
-    cert_name = "ISO 14001" if "14001" in menu else "ISO 45001"
-    
-    st.markdown(f"<h1 style='text-align: center; font-size: 2.5rem; margin-bottom: 20px; border-bottom: 4px solid #102a43; padding-bottom: 10px;'>{cert_name} Dashboard</h1>", unsafe_allow_html=True)
-    
-    # --- FILA 1 ---
-    col1, col2 = st.columns([1, 1.2])
-    
-    with col1:
-        st.markdown(f"""
-        <div class="quadrant-card card-info">
-            <div class="section-title">¿Qué es?</div>
-            <p style='color: #486581; font-size: 1rem; line-height: 1.5;'>
-                {'Norma internacional para <b>Sistemas de Gestión Ambiental (SGA)</b>. Ayuda a controlar impactos ambientales, reducir residuos y cumplir con la legislación vigente, mejorando la imagen corporativa.' if cert_name == 'ISO 14001' else 'Norma internacional para <b>Sistemas de Gestión de Seguridad y Salud en el Trabajo (SST)</b>. Previene lesiones, enfermedades laborales y asegura un entorno de trabajo seguro.'}
-            </p>
-            <br>
-            <div class="section-title">Documentos Clave</div>
-            <ul style='color: #486581; font-size: 0.95rem;'>
-                <li>Manual del Sistema de Gestión</li>
-                <li>Matriz de {'Aspectos e Impactos Ambientales' if cert_name == 'ISO 14001' else 'Peligros y Riesgos (IPERC)'}</li>
-                <li>Procedimientos Operativos Estandarizados</li>
-                <li>Registros de Auditoría Interna</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+st.markdown(f"""
+<style>
+    html, body, [class*="css"] {{ font-family: 'Calibri', 'Segoe UI', sans-serif; }}
+    .main {{ background-color: #FFFFFF; }}
 
-    with col2:
-        # Aquí estilizamos el Roadmap para que parezca un timeline con bolitas
-        st.markdown("""<div class="quadrant-card card-roadmap">
-            <div class="section-title">Roadmap Interactivo</div>
-        """, unsafe_allow_html=True)
-        
-        fases = list(ROADMAP_DATA[cert_name].keys())
-        
-        # El radio button se verá como timeline gracias al CSS inyectado arriba
-        selected_phase = st.radio(
-            "Progreso de Implementación", 
-            fases, 
-            horizontal=True,
-            label_visibility="collapsed" # Ocultamos el label por defecto para que sea más limpio
-        )
-        
-        st.markdown(f"<h4 style='color: #f59f00; margin-top: 20px;'>Checklist Fase: {selected_phase}</h4>", unsafe_allow_html=True)
-        
-        # Checkboxes
-        for task in ROADMAP_DATA[cert_name][selected_phase]:
-            task_id = f"{cert_name}_{selected_phase}_{task}".replace(" ", "_")
-            current_val = get_task_status(task_id)
-            
-            st.checkbox(
-                task, 
-                value=current_val, 
-                key=task_id, 
-                on_change=update_task_callback, 
-                args=(task_id, cert_name)
-            )
-            
-        st.markdown("</div>", unsafe_allow_html=True)
+    .adicom-hero {{
+        background: linear-gradient(135deg, {COLORS['navy']} 0%, {COLORS['darkTeal']} 100%);
+        padding: 28px 32px; border-radius: 14px; margin-bottom: 22px;
+    }}
+    .adicom-hero h1 {{ color: #FFFFFF; font-size: 2.1rem; font-weight: 800; margin: 0; }}
+    .adicom-hero p {{ color: #C9DCD8; font-size: 1.0rem; margin-top: 6px; }}
 
-    # --- FILA 2 ---
-    col3, col4 = st.columns([1, 1.2])
-    
-    with col3:
-        # ARREGLADO: El error del renderizado negro fue por mezclar HTML y Markdown incorrectamente.
-        # Ahora usamos st.container y divisiones nativas de Streamlit en lugar de un gran bloque HTML,
-        # O nos aseguramos de que el HTML sea 100% puro y no lo rompa el parser de Markdown.
-        
-        # Usaré HTML limpio y cerrado correctamente para asegurar que no se rompa el estilo.
-        html_advantages = """
-        <div class="quadrant-card card-advantages" style="background-color: white;">
-            <div class="section-title">Ventajas Competitivas</div>
-            <div style='display: flex; justify-content: space-between; gap: 20px;'>
-                
-                <!-- Columna Adicom -->
-                <div style='flex: 1; border-right: 1px solid #d9e2ec; padding-right: 15px;'>
-                    <h4 style='color: #0c8599; margin-bottom: 15px;'>Para ADICOM</h4>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <span class='custom-badge-adicom'>Reducción de Costos</span>
-                        <p style='font-size: 0.9rem; color: #486581; margin: 0;'>Optimización de recursos y menos multas.</p>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <span class='custom-badge-adicom'>Diferenciador Mercado</span>
-                        <p style='font-size: 0.9rem; color: #486581; margin: 0;'>Puntaje extra en licitaciones.</p>
-                    </div>
-                    
-                    <div>
-                        <span class='custom-badge-adicom'>Operación Ágil</span>
-                        <p style='font-size: 0.9rem; color: #486581; margin: 0;'>Procesos estandarizados y medibles.</p>
-                    </div>
-                </div>
-                
-                <!-- Columna Clientes -->
-                <div style='flex: 1; padding-left: 5px;'>
-                    <h4 style='color: #6741d9; margin-bottom: 15px;'>Para CLIENTES</h4>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <span class='custom-badge-client'>Confianza / Trust</span>
-                        <p style='font-size: 0.9rem; color: #486581; margin: 0;'>Garantía de calidad corporativa.</p>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <span class='custom-badge-client'>Cadena Segura</span>
-                        <p style='font-size: 0.9rem; color: #486581; margin: 0;'>Cumplimiento normativo heredado.</p>
-                    </div>
-                    
-                    <div>
-                        <span class='custom-badge-client'>Continuidad Negocio</span>
-                        <p style='font-size: 0.9rem; color: #486581; margin: 0;'>Menor riesgo de paros.</p>
-                    </div>
-                </div>
-                
-            </div>
-        </div>
-        """
-        st.markdown(html_advantages, unsafe_allow_html=True)
+    div[data-testid="stMetric"] {{
+        background-color: {COLORS['lightGray']};
+        padding: 16px 18px; border-radius: 12px;
+        border: 1px solid #E3E7E6;
+    }}
+    div[data-testid="stMetricLabel"] {{ color: {COLORS['gray']}; }}
+    div[data-testid="stMetricValue"] {{ color: {COLORS['darkTeal']}; }}
+
+    .cert-card {{
+        background-color: {COLORS['lightGray']};
+        border-radius: 12px; padding: 18px 20px; height: 100%;
+    }}
+    .cert-card h4 {{ margin-top: 0; color: {COLORS['darkTeal']}; }}
+    .doc-chip {{
+        display: inline-block; background-color: #FFFFFF; border: 1px solid #DCE4E2;
+        border-radius: 8px; padding: 6px 12px; margin: 4px 6px 4px 0; font-size: 0.85rem;
+        color: {COLORS['ink']};
+    }}
+    .badge-done {{ color: #FFFFFF; background-color: {COLORS['green']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
+    .badge-progress {{ color: #FFFFFF; background-color: {COLORS['teal']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
+    .badge-locked {{ color: {COLORS['ink']}; background-color: {COLORS['lock']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
+
+    .celebrate {{
+        background: linear-gradient(135deg, {COLORS['green']} 0%, {COLORS['teal']} 100%);
+        padding: 22px; border-radius: 14px; text-align: center; color: white;
+        font-size: 1.2rem; font-weight: 700; margin: 14px 0 6px 0;
+    }}
+    footer, #MainMenu {{ visibility: hidden; }}
+</style>
+""", unsafe_allow_html=True)
+
+# =================================================================================================
+# 2. CONOCIMIENTO ESTÁTICO POR CERTIFICACIÓN (de la investigación previa del proyecto)
+# =================================================================================================
+CERT_INFO = {
+    "ISO 14001": {
+        "titulo": "ISO 14001 — Sistema de Gestión Ambiental",
+        "que_es": "Estándar internacional para un Sistema de Gestión Ambiental (SGA). Da un marco "
+                  "estructurado para identificar impactos ambientales (energía, agua, residuos, "
+                  "emisiones), fijar metas de reducción y mejorar continuamente. Certificado por un "
+                  "organismo acreditado; válido en México y EE. UU.",
+        "adicom": [
+            "Aprovecha la disciplina documental que ya existe gracias a ISO 9001 — menor costo/tiempo.",
+            "Reduce el riesgo regulatorio y da datos reales de consumo para tomar decisiones.",
+            "Cierra la brecha de certificación con IGSA, que ya tiene ISO 14001 + Distintivo ESR.",
+        ],
+        "clientes": [
+            "Cumple los criterios de selección de proveedores de Ternium, Weir y Johnson Controls.",
+            "Evidencia verificable de manejo ambiental que el cliente puede citar en sus propios reportes.",
+            "Complementa la eficiencia energética que Adicom ya entrega a través de sus soluciones.",
+        ],
+        "documentos": ["Política ambiental", "Matriz de aspectos e impactos", "Registro de requisitos legales",
+                       "Objetivos y plan de acción", "Procedimientos de control operacional", "Plan de emergencias"],
+        "capex": "$9,000 – $20,000 USD (~$160k–$370k MXN) · 4–9 meses",
+    },
+    "ISO 45001": {
+        "titulo": "ISO 45001 — Seguridad y Salud en el Trabajo",
+        "que_es": "Estándar internacional para un Sistema de Gestión de Seguridad y Salud en el "
+                  "Trabajo (SST). Exige identificar peligros, controlar riesgos y mejorar el "
+                  "desempeño de seguridad de forma continua, con participación de los trabajadores.",
+        "adicom": [
+            "El ensamblaje de tableros y el trabajo de campo son de mayor riesgo — encaja directo con ISO 45001.",
+            "Con el tiempo puede reducir la Prima de Riesgo del IMSS al mejorar el historial de accidentes.",
+            "Reutiliza el hábito de control documental de ISO 9001 e ISO 14001, bajando el costo marginal.",
+        ],
+        "clientes": [
+            "Iguala la postura de seguridad de competidores como Hargrove (TÜV Functional Safety).",
+            "Responde a la exigencia de seguridad de clientes de industria pesada (minería, acero, agua).",
+        ],
+        "documentos": ["Política de SST", "Matriz de peligros y riesgos (IPERC)", "Registro legal de SST",
+                       "Objetivos y plan de acción", "Plan de emergencias", "Registro de incidentes"],
+        "capex": "$121,000 – $312,000 MXN (ciclo de 3 años) · 6–12 meses primera certificación",
+    },
+    "PROFEPA": {
+        "titulo": "Certificado Industria Limpia (PROFEPA)",
+        "que_es": "Reconocimiento del gobierno federal mexicano (PROFEPA) a plantas cuyo desempeño "
+                  "ambiental en aire, agua y suelo va más allá de lo que exige la ley. Válido 2 años "
+                  "y renovable.",
+        "adicom": [
+            "El certificado en sí es gratuito — el único costo real son los honorarios del auditor acreditado (EMA).",
+            "Reduce el riesgo de sanciones e inspecciones ambientales en la planta de Monterrey.",
+        ],
+        "clientes": [
+            "Reconocimiento 100% mexicano que complementa el estándar internacional ISO 14001.",
+            "Refuerza el mensaje de cumplimiento ambiental ante clientes y autoridades locales.",
+        ],
+        "documentos": ["Contrato con auditor EMA", "Registro en el sistema SAAEL", "Diagnóstico ambiental",
+                       "Plan de acción correctivo", "Verificación final"],
+        "capex": "~$70,000 – $120,000 MXN (solo honorarios del auditor) · 6–12 meses",
+    },
+    "CSIA": {
+        "titulo": "CSIA Certification — Ya la tenemos, toca aprovecharla",
+        "que_es": "Certificación de la Control System Integrators Association que audita la salud "
+                  "del NEGOCIO (no solo el producto): gestión general, RH, finanzas, gestión de "
+                  "proyectos, ciclo de vida de desarrollo y calidad. Re-auditoría cada 3 años.",
+        "adicom": [
+            "Adicom YA la tiene — ninguno de sus 12 competidores directos identificados la tiene.",
+            "Es el diferenciador de menor costo y mayor ROI de todo el plan (es aprovechamiento, no adquisición).",
+        ],
+        "clientes": [
+            "Da confianza en la estabilidad financiera y disciplina de proyecto del integrador.",
+            "Lenguaje listo para usarse en propuestas y RFPs frente a Ternium, Weir y Johnson Controls.",
+        ],
+        "documentos": ["Listado en el directorio CSIA", "Lenguaje CSIA en propuestas/RFP",
+                       "Caso de estudio publicado", "Evidencia para re-auditoría (cada 3 años)"],
+        "capex": "~$0 – $1,000 USD (marketing) · re-auditoría a cotizar directo con CSIA",
+    },
+    "Distintivo ESR": {
+        "titulo": "Distintivo ESR® (Empresa Socialmente Responsable)",
+        "que_es": "Reconocimiento anual de Cemefi (México) que evalúa prácticas ESG en 9 áreas con "
+                  "un modelo de madurez de 5 niveles, respaldado por la OCDE desde 2023. Se renueva "
+                  "cada año.",
+        "adicom": [
+            "Empaqueta toda la historia ESG de Adicom (E+S+G) en un solo sello reconocible.",
+            "Recomendado como paso FINAL del roadmap — se aprovecha mejor con evidencia ya generada por ISO 14001/45001.",
+        ],
+        "clientes": [
+            "Iguala la postura de IGSA, que ya combina ISO 14001 + Distintivo ESR ('relación ESG completa').",
+            "Refuerza marca empleadora y atractivo para talento de ingeniería.",
+        ],
+        "documentos": ["Registro en Plataforma Cemefi", "Acta constitutiva", "Constancia de situación fiscal",
+                       "Evidencia de las 9 áreas RSE", "Pago de cuota de participación"],
+        "capex": "~$25,000 – $50,000 MXN / año · secuenciar al final del roadmap",
+    },
+}
+
+CERT_ORDER = ["ISO 14001", "ISO 45001", "PROFEPA", "CSIA", "Distintivo ESR"]
+
+# =================================================================================================
+# 3. UTILIDADES DE LECTURA / PARSEO ROBUSTO (maneja formato "$1.234,56" y "22,0%")
+# =================================================================================================
+def _parse_locale_number(value):
+    """Convierte '$1.234,56', '1234.56', '', None, 90 -> float (o None si no se puede)."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = str(value).strip()
+    if s == "" or s.upper() in {"NAN", "NONE", "---"}:
+        return None
+    s = s.replace("$", "").replace("%", "").replace(" ", "")
+    # Formato es-MX en Sheets: punto = miles, coma = decimales -> normaliza a formato Python
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
 
 
-    with col4:
-        # ARREGLADO: Gráfico y tarjeta KPIs limpios sin sobreposiciones extrañas
-        st.markdown("""<div class="quadrant-card card-kpis" style="background-color: white;">
-            <div class="section-title">Impacto Financiero (KPIs)</div>
-        """, unsafe_allow_html=True)
-        
-        cert_col = 'ISO_14001' if cert_name == 'ISO 14001' else 'ISO_45001'
-        inv = data_kpis_board.loc[data_kpis_board['Concepto'] == 'Inv. Inicial', cert_col].values[0]
-        roi = data_kpis_board.loc[data_kpis_board['Concepto'] == 'ROI Esperado', cert_col].values[0]
-        costo = data_kpis_board.loc[data_kpis_board['Concepto'] == 'Costo Operativo', cert_col].values[0]
-        
-        # Métricas alineadas
-        mc1, mc2, mc3 = st.columns(3)
-        mc1.metric("Inv. Inicial", f"${inv:,}")
-        mc2.metric("ROI Esperado", f"{roi}%")
-        mc3.metric("Costo", f"${costo:,}")
-        
-        # Gráfica
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=data_trends['Mes'], y=data_trends['Costo Implementación'], 
-            name='Costo', marker_color='#334e68'
-        ))
-        fig.add_trace(go.Scatter(
-            x=data_trends['Mes'], y=data_trends['Ahorro Generado'], 
-            name='Beneficios', mode='lines+markers',
-            line=dict(color='#2cb1bc', width=3), marker=dict(size=8)
-        ))
-        
-        fig.update_layout(
-            title="Evolución (Costos vs Beneficios)",
-            title_font_size=14,
-            template="plotly_white",
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=0, r=0, t=30, b=0),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=200 # Ajuste de altura para que no desborde la tarjeta
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+def _parse_locale_percent(value):
+    """'22,0%' -> 0.22 ; 0.22 -> 0.22 ; 22 -> 0.22 (heurística: >1 asume que viene en %)."""
+    n = _parse_locale_number(value)
+    if n is None:
+        return 0.0
+    return n / 100.0 if abs(n) > 1 else n
 
-# ------------------------------------------
-# VISTA: TABLA Y CHECKLIST
-# ------------------------------------------
-elif menu == "✅ Checklist Global":
-    st.markdown("<h1>Resumen Ejecutivo & Control</h1>", unsafe_allow_html=True)
-    
-    t1, t2 = st.tabs(["📋 Progreso Detallado", "🧮 Matriz de Integración"])
-    
-    with t1:
-        st.markdown("### Control de Tareas por Fase")
-        colA, colB = st.columns(2)
-        
-        for i, (cert, fases) in enumerate(ROADMAP_DATA.items()):
-            target_col = colA if i == 0 else colB
-            with target_col:
-                st.markdown(f"**{cert}**")
-                for fase, tareas in fases.items():
-                    with st.expander(fase, expanded=False):
-                        for task in tareas:
-                            task_id = f"{cert}_{fase}_{task}".replace(" ", "_")
-                            current_val = get_task_status(task_id)
-                            st.checkbox(task, value=current_val, key=f"global_{task_id}", 
-                                        on_change=update_task_callback, args=(f"global_{task_id}", cert))
-                    
-    with t2:
-        st.markdown("### Integración de Sistemas (SGI)")
-        st.info("Muestra qué requisitos pueden integrarse para evitar trabajo doble al buscar múltiples ISOs.")
-        
-        tabla_interactiva = pd.DataFrame({
-            'Proceso Core': ['Control Documental', 'Auditorías Internas', 'Gestión de Riesgos', 'Política Ambiental', 'Política SST'],
-            'ISO 14001': ['✅ Compartido', '✅ Compartido', '✅ Específico', '✅ Obligatorio', '❌ No Aplica'],
-            'ISO 45001': ['✅ Compartido', '✅ Compartido', '✅ Específico', '❌ No Aplica', '✅ Obligatorio']
+
+def _parse_bool(value):
+    if isinstance(value, bool):
+        return value
+    s = str(value).strip().upper()
+    return s in {"TRUE", "VERDADERO", "1", "SI", "SÍ", "X"}
+
+
+def smart_read_csv(url: str, must_have_col: str, timeout: int = 12) -> Optional[pd.DataFrame]:
+    """Descarga un CSV publicado de Google Sheets encontrando automáticamente la fila real de
+    encabezados (tu Sheet tiene un título + fila en blanco antes de los encabezados)."""
+    try:
+        resp = requests.get(url, timeout=timeout)
+        resp.raise_for_status()
+        text = resp.content.decode("utf-8-sig", errors="replace")
+        lines = text.splitlines()
+        header_idx = 0
+        for i, line in enumerate(lines):
+            if must_have_col in line:
+                header_idx = i
+                break
+        df = pd.read_csv(io.StringIO(text), skiprows=header_idx)
+        df = df.dropna(how="all")
+        df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+        return df
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=POLL_SECONDS, show_spinner=False)
+def cargar_datos():
+    df_kpis = smart_read_csv(URL_KPIS, "Iniciativa_ESG")
+    df_roadmap = smart_read_csv(URL_ROADMAP, "ID_Tarea")
+
+    fuente = "google_sheets"
+    if df_kpis is None or df_roadmap is None:
+        fuente = "respaldo_local"
+        df_kpis = pd.DataFrame({
+            "Iniciativa_ESG": ["Gestión Ambiental (EMS)", "Eficiencia Energética", "Reducción de Residuos",
+                               "Matriz de Riesgos (SST)", "Capacitación SST", "Auditoría Final ISO"],
+            "Norma_ISO": ["ISO 14001", "ISO 14001", "ISO 14001", "ISO 45001", "ISO 45001", "ISO 14001 / 45001"],
+            "Presupuesto_Asignado_USD": [45000, 30000, 15000, 25000, 18000, 22000],
+            "Gasto_Actual_USD": [32000, 28000, 9500, 21000, 14000, 5000],
+            "Ahorro_Generado_USD": [12500, 9800, 4200, 6000, 3500, 0],
+            "ROI_Proyectado_Pct": [0.22, 0.18, 0.15, 0.12, 0.10, 0.25],
+            "ODS_Impactado": ["ODS 13: Acción por el Clima", "ODS 7: Energía Asequible", "ODS 12: Producción Responsable",
+                              "ODS 8: Trabajo Decente", "ODS 3: Salud y Bienestar", "ODS 9: Industria e Innovación"],
         })
-        st.dataframe(tabla_interactiva, use_container_width=True, hide_index=True)
+        df_roadmap = pd.DataFrame({
+            "ID_Tarea": list(range(1, 13)),
+            "Norma_ISO": ["ISO 14001"] * 6 + ["ISO 45001"] * 6,
+            "Requisito_Documental": [
+                "Política ambiental y alcance del SGA", "Matriz de aspectos e impactos ambientales",
+                "Registro de requisitos legales aplicables", "Objetivos ambientales y plan de acción",
+                "Procedimientos de control operacional", "Plan de respuesta ante emergencias ambientales",
+                "Política de SST y alcance del sistema", "Matriz de peligros y evaluación de riesgos (IPERC)",
+                "Registro de requisitos legales de SST", "Objetivos de SST y plan de acción",
+                "Plan de respuesta ante emergencias SST", "Registro de incidentes y acciones correctivas",
+            ],
+            "Estado": ["Completado", "En Proceso", "Completado", "En Proceso", "Pendiente", "Pendiente",
+                       "Completado", "En Proceso", "Completado", "En Proceso", "Pendiente", "Pendiente"],
+            "Completado": [True, False, True, False, False, False, True, False, True, False, False, False],
+            "ODS_Impactado": ["ODS 13", "ODS 12", "ODS 16", "ODS 9", "ODS 12", "ODS 11",
+                              "ODS 8", "ODS 3", "ODS 8", "ODS 8", "ODS 3", "ODS 8"],
+        })
 
-# ------------------------------------------
-# VISTA: DATOS
-# ------------------------------------------
-elif menu == "🔄 Datos":
-    st.markdown("<h1>Conexión de Datos</h1>", unsafe_allow_html=True)
-    
-    if st.button("🔄 Refrescar datos desde Google Sheets", type="primary"):
-        st.cache_data.clear()
+    # --- normaliza tipos ---
+    for col in ["Presupuesto_Asignado_USD", "Gasto_Actual_USD", "Ahorro_Generado_USD"]:
+        if col in df_kpis.columns:
+            df_kpis[col] = df_kpis[col].apply(_parse_locale_number)
+    if "ROI_Proyectado_Pct" in df_kpis.columns:
+        df_kpis["ROI_Proyectado_Pct"] = df_kpis["ROI_Proyectado_Pct"].apply(_parse_locale_percent)
+    df_kpis = df_kpis[df_kpis["Iniciativa_ESG"].astype(str).str.upper() != "TOTAL"].copy()
+    df_kpis["Norma_list"] = df_kpis["Norma_ISO"].astype(str).apply(lambda x: [s.strip() for s in re.split(r"/", x)])
+
+    if "Completado" in df_roadmap.columns:
+        df_roadmap["Completado"] = df_roadmap["Completado"].apply(_parse_bool)
+    df_roadmap["ID_Tarea"] = pd.to_numeric(df_roadmap["ID_Tarea"], errors="coerce")
+    df_roadmap = df_roadmap.dropna(subset=["ID_Tarea"])
+    df_roadmap["ID_Tarea"] = df_roadmap["ID_Tarea"].astype(int)
+
+    if "Fase" not in df_roadmap.columns:
+        # Respaldo: si el Sheet aún no tiene columna "Fase", se generan ~3 fases automáticas por norma
+        df_roadmap["Fase"] = ""
+        for norma, grupo in df_roadmap.groupby("Norma_ISO"):
+            ids_ordenados = grupo.sort_values("ID_Tarea")["ID_Tarea"].tolist()
+            n_fases = min(3, max(1, len(ids_ordenados)))
+            chunks = [ids_ordenados[i::n_fases] for i in range(n_fases)]  # reparto simple y estable
+            # reparte en orden secuencial real, no intercalado:
+            size = -(-len(ids_ordenados) // n_fases)
+            chunks = [ids_ordenados[i:i + size] for i in range(0, len(ids_ordenados), size)]
+            for fase_num, chunk in enumerate(chunks, start=1):
+                df_roadmap.loc[df_roadmap["ID_Tarea"].isin(chunk), "Fase"] = f"Fase {fase_num}"
+
+    timestamp = time.strftime("%H:%M:%S")
+    return df_kpis, df_roadmap, fuente, timestamp
+
+
+# =================================================================================================
+# 4. PERSISTENCIA LOCAL DEL CHECKLIST (sobrevive a un refresh de página)
+# =================================================================================================
+def load_local_state() -> dict:
+    if STATE_FILE.exists():
+        try:
+            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def save_local_state(state: dict):
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def sync_state_with_sheet(df_roadmap: pd.DataFrame, state: dict) -> dict:
+    """Siembra el estado local con lo que venga del Sheet SOLO para tareas nuevas que el usuario
+    todavía no ha tocado en la app — así el Sheet nunca le 'pisa' el progreso ya marcado en la app."""
+    changed = False
+    for _, row in df_roadmap.iterrows():
+        key = str(int(row["ID_Tarea"]))
+        if key not in state:
+            state[key] = bool(row.get("Completado", False))
+            changed = True
+    if changed:
+        save_local_state(state)
+    return state
+
+
+# --- OPCIONAL: escritura real hacia Google Sheets (bidireccional) -------------------------------
+# Si configuras una cuenta de servicio de Google en st.secrets["gcp_service_account"] y compartes
+# tu Sheet con su correo, esta función puede escribir el valor de vuelta a la celda real.
+# Ver README_DASHBOARD.md para la guía paso a paso. Mientras no esté configurado, se ignora
+# silenciosamente y todo sigue funcionando solo con persistencia local.
+def try_write_back_to_sheet(id_tarea: int, nuevo_valor: bool):
+    try:
+        has_secret = "gcp_service_account" in st.secrets
+    except Exception:
+        has_secret = False  # no existe secrets.toml -> simplemente se usa solo persistencia local
+    if not has_secret:
+        return
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(dict(st.secrets["gcp_service_account"]), scopes=scopes)
+        gc = gspread.authorize(creds)
+        sheet_id = st.secrets.get("gsheet_id")
+        worksheet_name = st.secrets.get("gsheet_roadmap_tab", "Roadmap_Certificacion")
+        sh = gc.open_by_key(sheet_id).worksheet(worksheet_name)
+        cell = sh.find(str(id_tarea))
+        if cell:
+            completado_col = sh.row_values(3).index("Completado") + 1  # fila 3 = encabezados
+            sh.update_cell(cell.row, completado_col, "TRUE" if nuevo_valor else "FALSE")
+    except Exception as e:
+        st.sidebar.warning(f"No se pudo escribir en Google Sheets: {e}")
+
+
+def on_task_toggle(task_key: str, task_id: int):
+    nuevo_valor = st.session_state[f"chk_{task_key}"]
+    state = st.session_state["checklist_state"]
+    state[str(task_id)] = nuevo_valor
+    save_local_state(state)
+    try_write_back_to_sheet(task_id, nuevo_valor)
+
+
+# =================================================================================================
+# 5. CARGA DE DATOS
+# =================================================================================================
+df_kpis, df_roadmap, fuente_datos, ultima_hora = cargar_datos()
+
+if "checklist_state" not in st.session_state:
+    st.session_state["checklist_state"] = load_local_state()
+st.session_state["checklist_state"] = sync_state_with_sheet(df_roadmap, st.session_state["checklist_state"])
+
+df_roadmap["Completado_Efectivo"] = df_roadmap["ID_Tarea"].apply(
+    lambda tid: st.session_state["checklist_state"].get(str(tid), False)
+)
+
+certs_en_datos = [c for c in CERT_ORDER if c in set(df_roadmap["Norma_ISO"].astype(str))]
+certs_solo_conocimiento = [c for c in CERT_ORDER if c not in certs_en_datos]
+
+# =================================================================================================
+# 6. BARRA LATERAL
+# =================================================================================================
+st.sidebar.markdown("## 🌱 Adicom · Controles")
+st.sidebar.caption(f"Fuente de datos: **{'Google Sheets ✅' if fuente_datos == 'google_sheets' else 'respaldo local ⚠️'}**")
+st.sidebar.caption(f"Última lectura del Sheet: {ultima_hora}")
+
+if st.sidebar.button("🔄 Actualizar datos ahora"):
+    st.cache_data.clear()
+    st.rerun()
+
+if HAS_AUTOREFRESH:
+    auto = st.sidebar.checkbox(f"🔁 Auto-actualizar cada {POLL_SECONDS}s", value=True)
+    if auto:
+        st_autorefresh(interval=POLL_SECONDS * 1000, key="auto_refresh")
+else:
+    st.sidebar.caption("💡 Instala `streamlit-autorefresh` para auto-actualización sin recargar manual.")
+
+filtro_certs = st.sidebar.multiselect("Filtrar certificaciones:", CERT_ORDER, default=CERT_ORDER)
+
+with st.sidebar.expander("⚠️ Avanzado"):
+    if st.button("Reiniciar checklist local (usar con cuidado)"):
+        st.session_state["checklist_state"] = {}
+        save_local_state({})
         st.rerun()
-        
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("### Data KPIs")
-        if df_kpis is not None:
-            st.dataframe(df_kpis)
+
+# =================================================================================================
+# 7. ENCABEZADO
+# =================================================================================================
+st.markdown("""
+<div class="adicom-hero">
+    <h1>ADICOM — Dashboard ESG & Certificaciones</h1>
+    <p>Monitoreo en vivo de ISO 14001, ISO 45001, PROFEPA, CSIA y Distintivo ESR®, con avance
+    financiero, alineación a los ODS y un roadmap por niveles para cada certificación.</p>
+</div>
+""", unsafe_allow_html=True)
+
+# =================================================================================================
+# 8. TABS: RESUMEN + una por certificación
+# =================================================================================================
+tab_labels = ["📊 Resumen General"] + [c for c in CERT_ORDER if c in filtro_certs]
+tabs = st.tabs(tab_labels)
+
+# -------------------------------------------------------------------------------------------
+# TAB 0: RESUMEN GENERAL
+# -------------------------------------------------------------------------------------------
+with tabs[0]:
+    df_kpis_f = df_kpis[df_kpis["Norma_list"].apply(lambda lst: any(c in lst for c in filtro_certs))]
+    df_roadmap_f = df_roadmap[df_roadmap["Norma_ISO"].isin(filtro_certs)]
+
+    total_presupuesto = df_kpis_f["Presupuesto_Asignado_USD"].sum()
+    total_gasto = df_kpis_f["Gasto_Actual_USD"].sum()
+    total_ahorro = df_kpis_f["Ahorro_Generado_USD"].sum()
+    roi_promedio = df_kpis_f["ROI_Proyectado_Pct"].mean() * 100 if len(df_kpis_f) else 0
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Presupuesto Asignado", f"${total_presupuesto:,.0f} USD")
+    c2.metric("Inversión Ejecutada", f"${total_gasto:,.0f} USD",
+              delta=f"${(total_presupuesto - total_gasto):,.0f} disponible")
+    c3.metric("Ahorro Generado", f"${total_ahorro:,.0f} USD")
+    c4.metric("ROI Promedio Proyectado", f"{roi_promedio:.1f}%")
+
+    total_tareas = len(df_roadmap_f)
+    completadas = int(df_roadmap_f["Completado_Efectivo"].sum())
+    pct_avance = (completadas / total_tareas * 100) if total_tareas else 0
+    st.progress(pct_avance / 100)
+    st.caption(f"**Avance global del roadmap:** {completadas} de {total_tareas} tareas completadas ({pct_avance:.1f}%)")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    g1, g2 = st.columns(2)
+    with g1:
+        st.subheader("📊 Control Financiero por Iniciativa")
+        fig_barras = go.Figure()
+        fig_barras.add_trace(go.Bar(x=df_kpis_f["Iniciativa_ESG"], y=df_kpis_f["Presupuesto_Asignado_USD"],
+                                     name="Presupuesto Asignado", marker_color=COLORS["teal"]))
+        fig_barras.add_trace(go.Bar(x=df_kpis_f["Iniciativa_ESG"], y=df_kpis_f["Gasto_Actual_USD"],
+                                     name="Gasto Actual", marker_color=COLORS["green"]))
+        fig_barras.update_layout(barmode="group", template="plotly_white", xaxis_tickangle=-30, height=380,
+                                  legend=dict(orientation="h", y=1.12))
+        st.plotly_chart(fig_barras, width='stretch')
+    with g2:
+        st.subheader("🎯 Distribución por ODS (ONU)")
+        fig_pie = px.pie(df_kpis_f, names="ODS_Impactado", values="Presupuesto_Asignado_USD", hole=0.45,
+                          color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY)
+        fig_pie.update_layout(template="plotly_white", height=380, legend=dict(orientation="h", y=-0.25))
+        st.plotly_chart(fig_pie, width='stretch')
+
+    st.subheader("📌 Avance por Certificación")
+    resumen_cert = (
+        df_roadmap_f.groupby("Norma_ISO")["Completado_Efectivo"]
+        .agg(["count", "sum"]).reset_index().rename(columns={"count": "Total", "sum": "Completadas"})
+    )
+    resumen_cert["Avance_Pct"] = (resumen_cert["Completadas"] / resumen_cert["Total"] * 100).round(0)
+    fig_hbar = px.bar(resumen_cert, y="Norma_ISO", x="Avance_Pct", text_auto=".0f", orientation="h",
+                       color="Avance_Pct", color_continuous_scale=[COLORS["lightGray"], COLORS["teal"], COLORS["darkTeal"]],
+                       range_x=[0, 100])
+    fig_hbar.update_layout(template="plotly_white", height=280, coloraxis_showscale=False,
+                            xaxis_title="% completado", yaxis_title="")
+    st.plotly_chart(fig_hbar, width='stretch')
+
+    st.markdown("---")
+    with st.expander("📄 Ver datos crudos del Excel / Google Sheet en vivo"):
+        st.markdown("**Hoja: KPIs_Financieros**")
+        st.dataframe(df_kpis.drop(columns=["Norma_list"]), width='stretch')
+        st.markdown("**Hoja: Roadmap_Certificacion**")
+        st.dataframe(df_roadmap.drop(columns=["Completado_Efectivo"]), width='stretch')
+        st.caption("Estos datos se leen directamente de tu Google Sheet publicado (o del respaldo "
+                   "local si el Sheet no está disponible en este momento).")
+
+# -------------------------------------------------------------------------------------------
+# TABS 1..N: UNA POR CERTIFICACIÓN
+# -------------------------------------------------------------------------------------------
+def render_roadmap_path(cert: str, df_cert_roadmap: pd.DataFrame):
+    """Dibuja el camino de fases (niveles) y el checklist de la fase seleccionada."""
+    fases = list(dict.fromkeys(df_cert_roadmap.sort_values("ID_Tarea")["Fase"]))  # orden estable, sin duplicar
+    if not fases:
+        st.info("Esta certificación todavía no tiene tareas de roadmap cargadas en el Sheet.")
+        return
+
+    # % completado y estado (locked/unlocked/done) de cada fase
+    estado_fases = {}
+    fase_previa_completa = True
+    for fase in fases:
+        tareas_fase = df_cert_roadmap[df_cert_roadmap["Fase"] == fase]
+        completas = tareas_fase["Completado_Efectivo"].sum()
+        total = len(tareas_fase)
+        done = completas == total and total > 0
+        if fase_previa_completa:
+            status = "done" if done else "unlocked"
         else:
-            st.error("No se pudo conectar. Revisa la URL.")
-            
-    with col2:
-        st.markdown("### Data Roadmap")
-        if df_roadmap is not None:
-            st.dataframe(df_roadmap)
+            status = "locked"
+        estado_fases[fase] = {"status": status, "completas": completas, "total": total}
+        fase_previa_completa = fase_previa_completa and done
+
+    # --- Camino visual (columns + badges) ---
+    cols = st.columns(len(fases))
+    accent = CERT_ACCENT.get(cert, COLORS["teal"])
+    for i, (col, fase) in enumerate(zip(cols, fases)):
+        info = estado_fases[fase]
+        with col:
+            if info["status"] == "done":
+                icono, badge_class, badge_txt = "✅", "badge-done", "Completa"
+            elif info["status"] == "unlocked":
+                icono, badge_class, badge_txt = "🟢", "badge-progress", "En curso"
+            else:
+                icono, badge_class, badge_txt = "🔒", "badge-locked", "Bloqueada"
+            st.markdown(f"""
+                <div style="text-align:center;">
+                    <div style="font-size:2rem;">{icono}</div>
+                    <div style="font-weight:700; color:{COLORS['ink']}; font-size:0.85rem; min-height:2.4em;">{fase}</div>
+                    <span class="{badge_class}">{badge_txt} · {info['completas']}/{info['total']}</span>
+                </div>
+            """, unsafe_allow_html=True)
+            if info["status"] != "locked":
+                if st.button("Ver checklist", key=f"btn_{cert}_{fase}", width='stretch'):
+                    st.session_state[f"fase_activa_{cert}"] = fase
+            else:
+                st.button("Ver checklist", key=f"btn_{cert}_{fase}", width='stretch', disabled=True)
+        if i < len(fases) - 1:
+            pass  # el propio layout en columnas ya sugiere la secuencia del camino
+
+    st.markdown(
+        f'<hr style="border: none; border-top: 2px dashed {accent}44; margin: 6px 0 18px 0;">',
+        unsafe_allow_html=True,
+    )
+
+    # fase activa por defecto = primera no bloqueada y no completa, o la última si todo listo
+    fase_activa = st.session_state.get(f"fase_activa_{cert}")
+    if fase_activa not in fases or estado_fases.get(fase_activa, {}).get("status") == "locked":
+        fase_activa = next((f for f in fases if estado_fases[f]["status"] == "unlocked"), fases[-1])
+        st.session_state[f"fase_activa_{cert}"] = fase_activa
+
+    if all(v["status"] == "done" for v in estado_fases.values()):
+        st.markdown(f'<div class="celebrate">🎖️ ¡Roadmap completo! {cert} está lista para certificación.</div>',
+                    unsafe_allow_html=True)
+
+    st.markdown(f"#### 📋 Checklist — {fase_activa}")
+    tareas_fase = df_cert_roadmap[df_cert_roadmap["Fase"] == fase_activa].sort_values("ID_Tarea")
+    for _, row in tareas_fase.iterrows():
+        task_id = int(row["ID_Tarea"])
+        key = f"{cert}_{task_id}"
+        st.checkbox(
+            row["Requisito_Documental"],
+            value=st.session_state["checklist_state"].get(str(task_id), False),
+            key=f"chk_{key}",
+            on_change=on_task_toggle,
+            args=(key, task_id),
+        )
+
+
+for cert in CERT_ORDER:
+    if cert not in filtro_certs:
+        continue
+    tab_idx = tab_labels.index(cert)
+    with tabs[tab_idx]:
+        info = CERT_INFO[cert]
+        accent = CERT_ACCENT.get(cert, COLORS["teal"])
+
+        st.markdown(f"### {info['titulo']}")
+        st.markdown(
+            f'<div style="background-color:{COLORS["lightGray"]}; border-left:4px solid {accent}; '
+            f'padding:14px 18px; border-radius:8px; margin-bottom:16px;">{info["que_es"]}</div>',
+            unsafe_allow_html=True,
+        )
+
+        colA, colB = st.columns(2)
+        with colA:
+            st.markdown('<div class="cert-card"><h4>✅ Ventajas para Adicom</h4>' +
+                        "".join(f"<p>• {b}</p>" for b in info["adicom"]) + "</div>", unsafe_allow_html=True)
+        with colB:
+            st.markdown('<div class="cert-card"><h4>🤝 Ventajas para Clientes</h4>' +
+                        "".join(f"<p>• {b}</p>" for b in info["clientes"]) + "</div>", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("**📄 Documentos clave para el certificado:**")
+        st.markdown("".join(f'<span class="doc-chip">{d}</span>' for d in info["documentos"]), unsafe_allow_html=True)
+        st.caption(f"💰 CAPEX estimado: {info['capex']}")
+
+        st.markdown("---")
+
+        if cert in certs_solo_conocimiento:
+            st.warning(
+                f"Todavía no hay filas de **{cert}** en tu Google Sheet — este apartado ya está "
+                f"listo con la investigación, y se activará automáticamente con Roadmap y "
+                f"Financiero en cuanto agregues sus filas (usa "
+                f"`Adicom_ESG_Dashboard_v2_5_Certificaciones.xlsx` como referencia)."
+            )
+            continue
+
+        df_cert_kpis = df_kpis[df_kpis["Norma_list"].apply(lambda lst: cert in lst)]
+        df_cert_roadmap = df_roadmap[df_roadmap["Norma_ISO"] == cert]
+
+        st.markdown("#### 🗺️ Roadmap de Certificación")
+        render_roadmap_path(cert, df_cert_roadmap)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 💵 Financiero de esta certificación")
+        if len(df_cert_kpis):
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Presupuesto", f"${df_cert_kpis['Presupuesto_Asignado_USD'].sum():,.0f} USD")
+            k2.metric("Gastado", f"${df_cert_kpis['Gasto_Actual_USD'].sum():,.0f} USD")
+            k3.metric("Ahorro generado", f"${df_cert_kpis['Ahorro_Generado_USD'].sum():,.0f} USD")
+            fig_cert = go.Figure()
+            fig_cert.add_trace(go.Bar(x=df_cert_kpis["Iniciativa_ESG"], y=df_cert_kpis["Presupuesto_Asignado_USD"],
+                                       name="Presupuesto", marker_color=accent))
+            fig_cert.add_trace(go.Bar(x=df_cert_kpis["Iniciativa_ESG"], y=df_cert_kpis["Gasto_Actual_USD"],
+                                       name="Gasto actual", marker_color=COLORS["green"]))
+            fig_cert.update_layout(barmode="group", template="plotly_white", height=320, xaxis_tickangle=-20,
+                                    legend=dict(orientation="h", y=1.15))
+            st.plotly_chart(fig_cert, width='stretch')
         else:
-            st.error("No se pudo conectar. Revisa la URL.")
+            st.info("Sin datos financieros para esta certificación todavía en el Sheet.")
+
+st.markdown("---")
+st.caption(
+    "Adicom · Dashboard ESG — los presupuestos y el roadmap se leen en vivo de Google Sheets; "
+    "el avance del checklist se guarda en el servidor para sobrevivir a un refresh de página."
+)
