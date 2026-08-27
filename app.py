@@ -807,14 +807,23 @@ for cert in CERT_ORDER:
                                        name="Presupuesto", marker_color=accent))
             fig_cert.add_trace(go.Bar(x=df_cert_kpis["Iniciativa_ESG"], y=df_cert_kpis["Gasto_Actual_USD"],
                                        name="Gasto actual", marker_color=COLORS["green"]))
-            fig_cert.update_layout(barmode="group", template="plotly_white", height=320, xaxis_tickangle=-20,
-                                    legend=dict(orientation="h", y=1.15))
+            fig_cert.update_layout(
+                barmode="group",
+                template="plotly_white",
+                height=320,
+                xaxis_tickangle=-20,
+                legend=dict(orientation="h", y=1.15)
+            )
             st.plotly_chart(fig_cert, width='stretch')
-            with st.expander("🤖 **Análisis de la Gráfica (IA)**"):
-              if "OPENAI_API_KEY" in st.secrets:
-                with st.spinner("Generando análisis..."):
-                  st.markdown(
-                      explicar_grafica_ia(df_tu_tabla, "Título de tu Gráfica o Pestaña")
+
+            with st.expander("🤖 **Análisis Financiero de Certificación (IA)**"):
+                if "OPENAI_API_KEY" in st.secrets:
+                    with st.spinner("Generando análisis..."):
+                        analisis_cert = explicar_grafica_ia(
+                            df_cert_kpis[["Iniciativa_ESG", "Presupuesto_Asignado_USD", "Gasto_Actual_USD"]],
+                            f"Financiero - {cert}"
+                        )
+                        st.markdown(analisis_cert)
         else:
             st.info("Sin datos financieros para esta certificación todavía en el Sheet.")
 
