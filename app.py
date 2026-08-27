@@ -78,17 +78,17 @@ st.markdown(f"""
 <style>
     html, body, [class*="css"] {{ font-family: 'Calibri', 'Segoe UI', sans-serif; }}
     
-    /* Fondo general y menú lateral (Sidebar) totalmente blanco */
+    /* Fondo general y barra lateral (Sidebar) en blanco */
     .stApp, [data-testid="stAppViewContainer"], .main, [data-testid="stSidebar"] {{
         background-color: #FFFFFF !important;
     }}
 
-    /* Texto general, títulos, tablas, pestañas y menú lateral en negro */
+    /* Texto general, títulos, tablas, pestañas y barra lateral en negro */
     h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, th, td, [data-baseweb="tab"], [data-testid="stSidebar"] * {{
         color: #000000 !important;
     }}
 
-    /* Fondo y texto claro para todos los botones de Streamlit */
+    /* Botones principales */
     button, div[data-testid="stButton"] > button {{
         background-color: #F0F2F6 !important;
         color: #000000 !important;
@@ -99,12 +99,31 @@ st.markdown(f"""
         color: #000000 !important;
     }}
 
-    /* Fuerza el texto de las tablas y dataframes a negro */
+    /* Selectores (Selectbox), botones de opción y cajas de texto */
+    div[data-baseweb="select"] > div,
+    div[data-testid="stSelectbox"] > div > div,
+    div[data-baseweb="base-input"],
+    div[data-baseweb="base-input"] input {{
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        border-color: #DCE4E2 !important;
+    }}
+
+    /* Menú flotante con la lista de opciones (Popover / Menú desplegado) */
+    [data-baseweb="popover"], [data-baseweb="menu"], [data-baseweb="option"] {{
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+    }}
+    [data-baseweb="option"] * {{
+        color: #000000 !important;
+    }}
+
+    /* Tablas y dataframes en negro */
     [data-testid="stDataFrame"] *, [data-testid="stTable"] * {{
         color: #000000 !important;
     }}
 
-    /* Mantiene protegidas las tarjetas oscuras para que sus textos sigan siendo visibles */
+    /* Tarjetas principales con su diseño original preservado */
     .adicom-hero {{
         background: linear-gradient(135deg, {COLORS['navy']} 0%, {COLORS['darkTeal']} 100%);
         padding: 28px 32px; border-radius: 14px; margin-bottom: 22px;
@@ -142,6 +161,7 @@ st.markdown(f"""
     footer, #MainMenu {{ visibility: hidden; }}
 </style>
 """, unsafe_allow_html=True)
+
 # =================================================================================================
 # 2. CONOCIMIENTO ESTÁTICO POR CERTIFICACIÓN (de la investigación previa del proyecto)
 # =================================================================================================
