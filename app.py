@@ -78,7 +78,9 @@ st.markdown(f"""
 <style>
     html, body, [class*="css"] {{ font-family: 'Calibri', 'Segoe UI', sans-serif; }}
     .main {{ background-color: #FFFFFF; }}
-    p, li, label, .stMarkdown { color: #000000; }
+
+    /* Texto general en negro */
+    p, li, label, .stMarkdown {{ color: #000000 !important; }}
 
     .adicom-hero {{
         background: linear-gradient(135deg, {COLORS['navy']} 0%, {COLORS['darkTeal']} 100%);
@@ -92,14 +94,14 @@ st.markdown(f"""
         padding: 16px 18px; border-radius: 12px;
         border: 1px solid #E3E7E6;
     }}
-    div[data-testid="stMetricLabel"] { color: #000000; }
-    div[data-testid="stMetricValue"] { color: #000000; }
+    div[data-testid="stMetricLabel"] {{ color: #000000; }}
+    div[data-testid="stMetricValue"] {{ color: #000000; }}
 
     .cert-card {{
         background-color: {COLORS['lightGray']};
         border-radius: 12px; padding: 18px 20px; height: 100%;
     }}
-    .cert-card h4 { margin-top: 0; color: #000000; }
+    .cert-card h4 {{ margin-top: 0; color: #000000; }}
     .doc-chip {{
         display: inline-block; background-color: #FFFFFF; border: 1px solid #DCE4E2;
         border-radius: 8px; padding: 6px 12px; margin: 4px 6px 4px 0; font-size: 0.85rem;
@@ -117,7 +119,6 @@ st.markdown(f"""
     footer, #MainMenu {{ visibility: hidden; }}
 </style>
 """, unsafe_allow_html=True)
-
 # =================================================================================================
 # 2. CONOCIMIENTO ESTÁTICO POR CERTIFICACIÓN (de la investigación previa del proyecto)
 # =================================================================================================
