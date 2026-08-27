@@ -99,9 +99,9 @@ st.markdown(f"""
         color: #000000 !important;
     }}
 
-    /* Selectores (Selectbox), botones de opción y cajas de texto */
+    /* Contenedor del selector (Selectbox / Multiselect) */
+    div[data-baseweb="select"],
     div[data-baseweb="select"] > div,
-    div[data-testid="stSelectbox"] > div > div,
     div[data-baseweb="base-input"],
     div[data-baseweb="base-input"] input {{
         background-color: #FFFFFF !important;
@@ -109,12 +109,22 @@ st.markdown(f"""
         border-color: #DCE4E2 !important;
     }}
 
-    /* Menú flotante con la lista de opciones (Popover / Menú desplegado) */
-    [data-baseweb="popover"], [data-baseweb="menu"], [data-baseweb="option"] {{
+    /* Etiquetas internas seleccionadas dentro del multiselect (Pills / Chips) */
+    span[data-baseweb="tag"], div[data-baseweb="tag"] {{
+        background-color: #E2E8E6 !important;
+        color: #000000 !important;
+    }}
+    span[data-baseweb="tag"] * {{
+        color: #000000 !important;
+    }}
+
+    /* Opciones flotantes al desplegar la lista */
+    [data-baseweb="popover"], [data-baseweb="menu"], ul[role="listbox"], li[role="option"] {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
     }}
-    [data-baseweb="option"] * {{
+    [data-baseweb="popover"] *, [data-baseweb="menu"] *, ul[role="listbox"] * {{
+        background-color: #FFFFFF !important;
         color: #000000 !important;
     }}
 
@@ -161,7 +171,6 @@ st.markdown(f"""
     footer, #MainMenu {{ visibility: hidden; }}
 </style>
 """, unsafe_allow_html=True)
-
 # =================================================================================================
 # 2. CONOCIMIENTO ESTÁTICO POR CERTIFICACIÓN (de la investigación previa del proyecto)
 # =================================================================================================
