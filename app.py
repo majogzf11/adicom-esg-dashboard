@@ -231,23 +231,30 @@ PLOTLY_FONT_BLACK = dict(color="#000000", family="Segoe UI, sans-serif")
 # 2. MOTOR DE IA OPTIMIZADO CON FALLBACK Y CACHÉ
 # =================================================================================================
 def llamar_gemini_fallback(prompt_texto: str) -> str:
-    """Función auxiliar que intenta llamar a modelos disponibles de Gemini para evitar el error 404."""
+    """Ejecuta la consulta en Gemini capturando errores explícitos para evitar bloqueos."""
     api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
     if not api_key:
-        return "⚠️ Clave de API no configurada en `st.secrets`."
+        return "⚠️ Error: No se encontró la clave `GEMINI_API_KEY` en st.secrets."
 
     genai.configure(api_key=api_key)
-    modelos_candidatos = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-flash-latest"]
+    
+    # Probar modelo principal rápidamente
+    modelos = ["gemini-1.5-flash", "gemini-2.0-flash"]
+    errores = []
 
-    for m in modelos_candidatos:
+    for m in modelos:
         try:
             model = genai.GenerativeModel(m)
+            # Generar contenido
             response = model.generate_content(prompt_texto)
-            return response.text
-        except Exception:
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            # Guardar el error real para no dejar al usuario a ciegas
+            errores.append(f"Modelo `{m}`: {str(e)}")
             continue
 
-    return "⚠️ No fue posible comunicarse con ningún modelo de Gemini disponible."
+    return f"⚠️ Error al conectar con Gemini:\n\n" + "\n".join(errores)
 
 @st.cache_data(ttl=600, show_spinner=False)
 def explicar_grafica_ia(df_datos: pd.DataFrame, titulo_grafica: str, contexto_extra: str = "") -> str:
