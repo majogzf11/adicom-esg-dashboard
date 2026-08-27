@@ -636,29 +636,29 @@ with tabs[0]:
             )
             st.markdown(analisis)
     with g2:
-      st.subheader("🎯 Distribución por ODS (ONU)")
-      fig_pie = px.pie(
-          df_kpis_f,
-          names="ODS_Impactado",
-          values="Presupuesto_Asignado_USD",
-          hole=0.45,
-          color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY,
-      )
-      fig_pie.update_layout(
-          template="plotly_white",
-          height=380,
-          legend=dict(orientation="h", y=-0.25),
-      )
-      st.plotly_chart(fig_pie, width="stretch")
+        st.subheader("🎯 Distribución por ODS (ONU)")
+        fig_pie = px.pie(
+            df_kpis_f,
+            names="ODS_Impactado",
+            values="Presupuesto_Asignado_USD",
+            hole=0.45,
+            color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY,
+        )
+        fig_pie.update_layout(
+            template="plotly_white",
+            height=380,
+            legend=dict(orientation="h", y=-0.25),
+        )
+        st.plotly_chart(fig_pie, width="stretch")
 
-    with st.expander("🤖 **Análisis de la Gráfica (IA)**"):
-      if "OPENAI_API_KEY" in st.secrets:
-        with st.spinner("Generando análisis..."):
-          st.markdown(
-              explicar_grafica_ia(df_tu_tabla, "Título de tu Gráfica o Pestaña")
-
-            )
-            st.markdown(analisis)
+        with st.expander("🤖 **Análisis Ejecutivo ODS (IA)**"):
+            if "OPENAI_API_KEY" in st.secrets:
+                with st.spinner("Analizando alineación ODS..."):
+                    analisis_ods = explicar_grafica_ia(
+                        df_kpis_f[["ODS_Impactado", "Presupuesto_Asignado_USD"]],
+                        "Distribución por ODS (ONU)"
+                    )
+                    st.markdown(analisis_ods)
 
     st.markdown("---")
     with st.expander("📄 Ver datos crudos del Excel / Google Sheet en vivo"):
