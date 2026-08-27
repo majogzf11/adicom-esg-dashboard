@@ -62,7 +62,6 @@ COLORS = {
     "white": "#FFFFFF",
     "warn": "#C77B1E",
     "lock": "#B9C2C0",
-    "ink": "#233238"
 }
 
 CERT_ACCENT = {
@@ -78,7 +77,8 @@ PLOTLY_TEMPLATE_COLORWAY = [COLORS["teal"], COLORS["darkTeal"], COLORS["green"],
 st.markdown(f"""
 <style>
     html, body, [class*="css"] {{ font-family: 'Calibri', 'Segoe UI', sans-serif; }}
-    .main {{ background-color: #0B2E4A; }}
+    .main {{ background-color: #FFFFFF; }}
+    p, li, label, .stMarkdown { color: #000000; }
 
     .adicom-hero {{
         background: linear-gradient(135deg, {COLORS['navy']} 0%, {COLORS['darkTeal']} 100%);
@@ -92,18 +92,18 @@ st.markdown(f"""
         padding: 16px 18px; border-radius: 12px;
         border: 1px solid #E3E7E6;
     }}
-    div[data-testid="stMetricLabel"] {{ color: {COLORS['gray']}; }}
-    div[data-testid="stMetricValue"] {{ color: {COLORS['darkTeal']}; }}
+    div[data-testid="stMetricLabel"] { color: #000000; }
+    div[data-testid="stMetricValue"] { color: #000000; }
 
     .cert-card {{
         background-color: {COLORS['lightGray']};
         border-radius: 12px; padding: 18px 20px; height: 100%;
     }}
-    .cert-card h4 {{ margin-top: 0; color: {COLORS['darkTeal']}; }}
+    .cert-card h4 { margin-top: 0; color: #000000; }
     .doc-chip {{
-        display: inline-block; background-color: #0B2E4A; border: 1px solid #DCE4E2;
+        display: inline-block; background-color: #FFFFFF; border: 1px solid #DCE4E2;
         border-radius: 8px; padding: 6px 12px; margin: 4px 6px 4px 0; font-size: 0.85rem;
-        color: {COLORS['ink']};
+        color: #000000;
     }}
     .badge-done {{ color: #FFFFFF; background-color: {COLORS['green']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
     .badge-progress {{ color: #FFFFFF; background-color: {COLORS['teal']}; border-radius: 20px; padding: 3px 12px; font-size: 0.8rem; font-weight: 700; }}
