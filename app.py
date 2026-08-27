@@ -24,6 +24,10 @@ import plotly.graph_objects as go
 import plotly.express as px
 import requests
 import streamlit as st
+import openai
+import streamlit as st
+
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -171,6 +175,36 @@ st.markdown(f"""
     footer, #MainMenu {{ visibility: hidden; }}
 </style>
 """, unsafe_allow_html=True)
+# =================================================================================================
+# UTILIDAD DE IA PARA ANÁLISIS DE ODS
+# =================================================================================================
+@st.cache_data
+def obtener_explicacion_ia(df_datos):
+    client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    
+    # Filtramos las columnas clave para no enviar información redundante
+    columnas_clave = [c for c in ["Iniciativa_ESG", "ODS_Impactado", "Presupuesto_Asignado_USD"] if c in df_datos.columns]
+    resumen_datos = df_datos[columnas_clave].to_string(index=False)
+
+    prompt = f"""
+    Actúa como un consultor experto en sostenibilidad ESG. 
+    Analiza la siguiente información de la gráfica sobre el impacto y distribución por ODS:
+    
+    {resumen_datos}
+    
+    Proporciona un análisis en español estructurado de la siguiente forma:
+    - **Resultado general:** Una oración resumen del presupuesto destinado a ODS.
+    - **Fortaleza:** El ODS con mayor asignación o impacto y qué representa.
+    - **Oportunidad de mejora:** Qué área requiere mayor atención o balance.
+    Escribe en un tono directo y ejecutivo (máximo 120 palabras).
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+    return response.choices[0].message.content
 # =================================================================================================
 # 2. CONOCIMIENTO ESTÁTICO POR CERTIFICACIÓN (de la investigación previa del proyecto)
 # =================================================================================================
@@ -562,25 +596,22 @@ with tabs[0]:
         fig_barras.update_layout(barmode="group", template="plotly_white", xaxis_tickangle=-30, height=380,
                                   legend=dict(orientation="h", y=1.12))
         st.plotly_chart(fig_barras, width='stretch')
-    with g2:
+   with g2:
         st.subheader("🎯 Distribución por ODS (ONU)")
         fig_pie = px.pie(df_kpis_f, names="ODS_Impactado", values="Presupuesto_Asignado_USD", hole=0.45,
                           color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY)
         fig_pie.update_layout(template="plotly_white", height=380, legend=dict(orientation="h", y=-0.25))
         st.plotly_chart(fig_pie, width='stretch')
 
-    st.subheader("📌 Avance por Certificación")
-    resumen_cert = (
-        df_roadmap_f.groupby("Norma_ISO")["Completado_Efectivo"]
-        .agg(["count", "sum"]).reset_index().rename(columns={"count": "Total", "sum": "Completadas"})
-    )
-    resumen_cert["Avance_Pct"] = (resumen_cert["Completadas"] / resumen_cert["Total"] * 100).round(0)
-    fig_hbar = px.bar(resumen_cert, y="Norma_ISO", x="Avance_Pct", text_auto=".0f", orientation="h",
-                       color="Avance_Pct", color_continuous_scale=[COLORS["lightGray"], COLORS["teal"], COLORS["darkTeal"]],
-                       range_x=[0, 100])
-    fig_hbar.update_layout(template="plotly_white", height=280, coloraxis_showscale=False,
-                            xaxis_title="% completado", yaxis_title="")
-    st.plotly_chart(fig_hbar, width='stretch')
+        # --- PEGAR A PARTIR DE AQUÍ ---
+        with st.expander("🤖 **Análisis Ejecutivo ODS (IA)**"):
+            if "OPENAI_API_KEY" in st.secrets:
+                with st.spinner("Generando análisis en tiempo real..."):
+                    analisis = obtener_explicacion_ia(df_kpis_f)
+                    st.markdown(analisis)
+            else:
+                st.warning("Configura tu OPENAI_API_KEY en st.secrets para activar esta función.")
+    
 
     st.markdown("---")
     with st.expander("📄 Ver datos crudos del Excel / Google Sheet en vivo"):
