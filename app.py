@@ -21,6 +21,11 @@ ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Pro)
 ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Corregida)
 """
 
+# -*- coding: utf-8 -*-
+"""
+ADICOM — Dashboard ESG & Certificaciones (Versión Ejecutiva Pro)
+"""
+
 import io
 import json
 import re
@@ -45,6 +50,9 @@ try:
 except ImportError:
     HAS_AUTOREFRESH = False
 
+# =================================================================================================
+# 0. CONFIGURACIÓN GENERAL Y TIEMPOS DE CONFIGURACIÓN
+# =================================================================================================
 st.set_page_config(
     page_title="Adicom · Dashboard ESG & Certificaciones",
     page_icon="🌱",
@@ -55,9 +63,12 @@ st.set_page_config(
 URL_KPIS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=1096975805&single=true&output=csv"
 URL_ROADMAP = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQklg9IQYomXAn3t9xCsQu7zDScqlO38Yrl9rNXdscrdiao7wU1u3kyWJa7IPUR8g/pub?gid=2082257667&single=true&output=csv"
 
-POLL_SECONDS = 30
+POLL_SECONDS = 60  # Sincronización cada 60 segundos para cuidar consumo de datos
 STATE_FILE = Path(__file__).parent / "data" / "checklist_state.json"
 
+# =================================================================================================
+# 1. ESTILOS CSS ESTRICTOS CON COLORES DE LETRA ACTUALIZADOS
+# =================================================================================================
 COLORS = {
     "navy": "#0B2E4A",
     "darkTeal": "#0E4C47",
@@ -65,7 +76,7 @@ COLORS = {
     "green": "#2FAE8C",
     "lightGray": "#F8F9FA",
     "borderGray": "#E9ECEF",
-    "ink": "#1E1E1E",
+    "ink": "#0F172A",      # Color principal de texto (Slate oscuro)
     "white": "#FFFFFF",
     "warn": "#C77B1E",
     "lock": "#9E9E9E",
@@ -83,24 +94,30 @@ PLOTLY_TEMPLATE_COLORWAY = [COLORS["teal"], COLORS["darkTeal"], COLORS["green"],
 
 st.markdown(f"""
 <style>
-    /* Fondo general e interfaz limpia */
+    /* Tipografía y fondo global blanco con texto en #0F172A */
     html, body, [class*="css"], .stApp {{
         font-family: 'Segoe UI', 'Calibri', sans-serif;
         background-color: #FFFFFF !important;
-        color: #1E1E1E !important;
+        color: #0F172A !important;
     }}
+    
+    /* Contenedores principales y barra lateral */
     [data-testid="stAppViewContainer"], .main, section[data-testid="stSidebar"] {{
         background-color: #FFFFFF !important;
     }}
     section[data-testid="stSidebar"] {{
         border-right: 1px solid #E9ECEF !important;
     }}
+
+    /* Títulos, textos y etiquetas */
     h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, th, td, [data-baseweb="tab"] {{
-        color: #1E1E1E !important;
+        color: #0F172A !important;
     }}
+
+    /* Botones */
     button, div[data-testid="stButton"] > button {{
         background-color: #F8F9FA !important;
-        color: #1E1E1E !important;
+        color: #0F172A !important;
         border: 1px solid #CED4DA !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
@@ -111,36 +128,27 @@ st.markdown(f"""
         border-color: #ADB5BD !important;
     }}
 
-    /* FIX: TEXTO BLANCO EN LA CAJA DE CONSULTA DE GEMINI (TEXTAREA) */
-    textarea, 
-    div[data-baseweb="textarea"] textarea, 
-    div[data-baseweb="base-input"] textarea,
-    .stTextArea textarea {{
-        color: #FFFFFF !important;
-        -webkit-text-fill-color: #FFFFFF !important;
-        background-color: #212529 !important;
-        border-radius: 8px !important;
-        font-size: 0.95rem !important;
-        font-weight: 500 !important;
-    }}
-
-    /* Selectbox y menús desplegables */
+    /* Selectbox y campos desplegables */
     div[data-baseweb="select"] > div,
     div[data-baseweb="base-input"] input {{
         background-color: #FFFFFF !important;
-        color: #1E1E1E !important;
+        color: #0F172A !important;
         border-color: #CED4DA !important;
     }}
+
+    /* Menús flotantes (Popovers / Dropdowns) */
     [data-baseweb="popover"], [data-baseweb="menu"], ul[role="listbox"], li[role="option"] {{
         background-color: #FFFFFF !important;
-        color: #1E1E1E !important;
-    }}
-    span[data-baseweb="tag"] {{
-        background-color: #E9ECEF !important;
-        color: #1E1E1E !important;
+        color: #0F172A !important;
     }}
 
-    /* Tarjetas ejecutivas */
+    /* Chips de multiselect */
+    span[data-baseweb="tag"] {{
+        background-color: #E9ECEF !important;
+        color: #0F172A !important;
+    }}
+
+    /* Tarjeta Hero Principal */
     .adicom-hero {{
         background: linear-gradient(135deg, {COLORS['navy']} 0%, {COLORS['darkTeal']} 100%);
         padding: 26px 32px;
@@ -149,21 +157,26 @@ st.markdown(f"""
         color: #FFFFFF !important;
     }}
     .adicom-hero h1 {{ color: #FFFFFF !important; font-size: 2.1rem; font-weight: 800; margin: 0; }}
-    .adicom-hero p {{ color: #E0F2FE !important; font-size: 1.0rem; margin-top: 6px; }}
+    .adicom-hero p {{ color: #F1F5F9 !important; font-size: 1.0rem; margin-top: 6px; }}
+
+    /* Tarjetas de Métricas */
     div[data-testid="stMetric"] {{
         background-color: #F8F9FA !important;
         padding: 16px;
         border-radius: 12px;
         border: 1px solid #E9ECEF !important;
     }}
-    div[data-testid="stMetricLabel"] {{ color: #495057 !important; font-weight: 600; }}
-    div[data-testid="stMetricValue"] {{ color: #1E1E1E !important; font-weight: 700; }}
+    div[data-testid="stMetricLabel"] {{ color: #334155 !important; font-weight: 600; }}
+    div[data-testid="stMetricValue"] {{ color: #0F172A !important; font-weight: 700; }}
+
+    /* Tarjetas de Certificación y ODS */
     .cert-card {{
         background-color: #F8F9FA;
         border: 1px solid #E9ECEF;
         border-radius: 12px;
         padding: 18px;
         height: 100%;
+        color: #0F172A !important;
     }}
     .ods-card {{
         background-color: #FFFFFF;
@@ -173,7 +186,9 @@ st.markdown(f"""
         padding: 16px;
         margin-bottom: 12px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        color: #0F172A !important;
     }}
+    
     .doc-chip {{
         display: inline-block;
         background-color: #FFFFFF;
@@ -183,129 +198,242 @@ st.markdown(f"""
         margin: 4px;
         font-size: 0.85rem;
         font-weight: 500;
-        color: #1E1E1E !important;
+        color: #0F172A !important;
     }}
+
+    /* Badges de estado */
     .badge-done {{ color: #FFFFFF !important; background-color: {COLORS['green']}; border-radius: 14px; padding: 4px 12px; font-size: 0.78rem; font-weight: 700; }}
     .badge-progress {{ color: #FFFFFF !important; background-color: {COLORS['teal']}; border-radius: 14px; padding: 4px 12px; font-size: 0.78rem; font-weight: 700; }}
     .badge-locked {{ color: #FFFFFF !important; background-color: {COLORS['lock']}; border-radius: 14px; padding: 4px 12px; font-size: 0.78rem; font-weight: 700; }}
+
     .celebrate {{
         background: linear-gradient(135deg, {COLORS['green']} 0%, {COLORS['teal']} 100%);
-        padding: 18px; border-radius: 12px; text-align: center; color: white !important;
+        padding: 18px; border-radius: 12px; text-align: center; color: #FFFFFF !important;
         font-size: 1.1rem; font-weight: 700; margin: 12px 0;
     }}
     footer, #MainMenu {{ visibility: hidden; }}
 </style>
 """, unsafe_allow_html=True)
 
-def aplicar_estilo_grafica(fig, titulo=""):
-    """FIX: Forzar texto negro en títulos, ejes, leyendas y etiquetas de Plotly."""
-    fig.update_layout(
-        template="plotly_white",
-        title=dict(
-            text=f"<b>{titulo}</b>" if titulo else "",
-            font=dict(color="#1E1E1E", size=15),
-            x=0,
-            xanchor="left"
-        ),
-        paper_bgcolor="#FFFFFF",
-        plot_bgcolor="#FFFFFF",
-        font=dict(color="#1E1E1E", size=12),
-        xaxis=dict(
-            tickfont=dict(color="#1E1E1E"),
-            title_font=dict(color="#1E1E1E"),
-            gridcolor="#E9ECEF"
-        ),
-        yaxis=dict(
-            tickfont=dict(color="#1E1E1E"),
-            title_font=dict(color="#1E1E1E"),
-            gridcolor="#E9ECEF"
-        ),
-        legend=dict(
-            font=dict(color="#1E1E1E"),
-            orientation="h",
-            y=1.12
-        ),
-        margin=dict(l=20, r=20, t=40, b=40)
-    )
-    return fig
-
+# =================================================================================================
+# 2. MOTOR DE IA OPTIMIZADO CON CACHÉ (A Demanda)
+# =================================================================================================
 @st.cache_data(ttl=600, show_spinner=False)
 def explicar_grafica_ia(df_datos: pd.DataFrame, titulo_grafica: str, contexto_extra: str = "") -> str:
+    """Genera análisis ejecutivo con Gemini optimizado con caché para evitar saturar la API."""
     if "OPENAI_API_KEY" not in st.secrets:
         return "⚠️ Clave de API no configurada en `st.secrets`."
 
     try:
         genai.configure(api_key=st.secrets["OPENAI_API_KEY"])
         resumen_datos = df_datos.to_string(index=False)
+
         prompt = f"""
-        Actúa como Consultor Senior ESG para Adicom. Analiza la gráfica: "{titulo_grafica}".
+        Actúa como un Consultor Senior en Sostenibilidad ESG y Estrategia Corporativa para la empresa Adicom. 
+        Analiza los siguientes datos de la gráfica: "{titulo_grafica}".
         {contexto_extra}
+        
         Datos:
         {resumen_datos}
-        Reporte breve (máx 90 palabras):
-        - **📌 Hallazgo Principal:**
-        - **⚠️ Oportunidad/Riesgo:**
-        - **🚀 Recomendación:**
+        
+        Proporciona un reporte ejecutivo breve en español (máximo 90 palabras) estructurado así:
+        - **📌 Hallazgo Principal:** (Conclusión clave)
+        - **⚠️ Oportunidad/Riesgo:** (Dato crítico o desviación)
+        - **🚀 Recomendación:** (Acción concreta recomendada para la gerencia)
         """
-        for m in ["gemini-1.5-flash", "gemini-2.0-flash"]:
+
+        modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+        for m in modelos:
             try:
                 model = genai.GenerativeModel(m)
-                return model.generate_content(prompt).text
+                response = model.generate_content(prompt)
+                return response.text
             except Exception:
                 continue
-        return "⚠️ Servicio de IA temporalmente no disponible."
-    except Exception as e:
-        return f"⚠️ Error: {str(e)}"
 
+        return "⚠️ No fue posible comunicarse con los modelos de Gemini disponibles."
+    except Exception as e:
+        return f"⚠️ Error al generar análisis: {str(e)}"
+
+# =================================================================================================
+# 3. BASE DE CONOCIMIENTO DE ODS Y CERTIFICACIONES
+# =================================================================================================
 ODS_INFO = {
-    "ODS 3": {"nombre": "ODS 3: Salud y Bienestar", "descripcion": "Garantizar una vida sana y promover el bienestar.", "impacto_adicom": "Matriz IPERC (ISO 45001) y protocolos de seguridad en campo.", "color": "#4C9F38"},
-    "ODS 7": {"nombre": "ODS 7: Energía Asequible", "descripcion": "Garantizar energía asequible y sostenible.", "impacto_adicom": "Monitoreo eficiente de energía industrial para clientes.", "color": "#FCC30B"},
-    "ODS 8": {"nombre": "ODS 8: Trabajo Decente", "descripcion": "Crecimiento económico y trabajo decente.", "impacto_adicom": "Entornos de trabajo seguros y retención de talento.", "color": "#A21942"},
-    "ODS 9": {"nombre": "ODS 9: Industria e Innovación", "descripcion": "Infraestructura resiliente e industrialización sostenible.", "impacto_adicom": "Sistemas de automatización alineados a CSIA.", "color": "#FD6925"},
-    "ODS 11": {"nombre": "ODS 11: Ciudades Sostenibles", "descripcion": "Asentamientos humanos seguros y sostenibles.", "impacto_adicom": "Automatización de redes de agua y energía urbana.", "color": "#FD9D24"},
-    "ODS 12": {"nombre": "ODS 12: Producción Responsable", "descripcion": "Garantizar consumo y producción sostenibles.", "impacto_adicom": "Gestión de residuos bajo norma ISO 14001.", "color": "#BF8B2E"},
-    "ODS 13": {"nombre": "ODS 13: Acción por el Clima", "descripcion": "Combatir el cambio climático y sus efectos.", "impacto_adicom": "Reducción de huella ambiental y auditoría PROFEPA.", "color": "#3F7E44"},
-    "ODS 16": {"nombre": "ODS 16: Instituciones Sólidas", "descripcion": "Promover sociedades transparentes e inclusivas.", "impacto_adicom": "Gobernanza ética y distinción ESR®.", "color": "#00689D"}
+    "ODS 3": {
+        "nombre": "ODS 3: Salud y Bienestar",
+        "descripcion": "Garantizar una vida sana y promover el bienestar de todos en todas las edades.",
+        "impacto_adicom": "Implementación de matriz IPERC (ISO 45001), ergonómica y protocolos de seguridad operacional en campo e instalación de tableros.",
+        "color": "#4C9F38"
+    },
+    "ODS 7": {
+        "nombre": "ODS 7: Energía Asequible y No Contaminante",
+        "descripcion": "Garantizar el acceso a una energía asequible, segura, sostenible y moderna.",
+        "impacto_adicom": "Soluciones de eficiencia energética y monitoreo inteligente de consumo eléctrico para clientes industriales (Ternium, JCI).",
+        "color": "#FCC30B"
+    },
+    "ODS 8": {
+        "nombre": "ODS 8: Trabajo Decente y Crecimiento Económico",
+        "descripcion": "Promover el crecimiento económico inclusivo y sostenible, el empleo y el trabajo decente.",
+        "impacto_adicom": "Entornos de trabajo seguros (ISO 45001), retención de talento en ingeniería e igualdad de oportunidades.",
+        "color": "#A21942"
+    },
+    "ODS 9": {
+        "nombre": "ODS 9: Industria, Innovación e Infraestructura",
+        "descripcion": "Construir infraestructuras resilientes, promover la industrialización sostenible y fomentar la innovación.",
+        "impacto_adicom": "Integración de sistemas de automatización avanzada certificada bajo el estándar global CSIA.",
+        "color": "#FD6925"
+    },
+    "ODS 11": {
+        "nombre": "ODS 11: Ciudades y Comunidades Sostenibles",
+        "descripcion": "Lograr que las ciudades y los asentamientos humanos sean inclusivos, seguros y sostenibles.",
+        "impacto_adicom": "Sistemas de control automatizado para infraestructura crítica de agua y redes de energía urbana.",
+        "color": "#FD9D24"
+    },
+    "ODS 12": {
+        "nombre": "ODS 12: Producción y Consumo Responsables",
+        "descripcion": "Garantizar modalidades de consumo y producción sostenibles.",
+        "impacto_adicom": "Reducción de residuos industriales y reciclaje bajo los lineamientos del Sistema de Gestión Ambiental (ISO 14001).",
+        "color": "#BF8B2E"
+    },
+    "ODS 13": {
+        "nombre": "ODS 13: Acción por el Clima",
+        "descripcion": "Adoptar medidas urgentes para combatir el cambio climático y sus efectos.",
+        "impacto_adicom": "Planes de reducción de huella de carbono operacional y auditoría ambiental para el Distintivo Industria Limpia (PROFEPA).",
+        "color": "#3F7E44"
+    },
+    "ODS 16": {
+        "nombre": "ODS 16: Paz, Justicia e Instituciones Sólidas",
+        "descripcion": "Promover sociedades transparentes e instituciones eficaces y responsables.",
+        "impacto_adicom": "Gobernanza ética, transparencia en contrataciones y alineación con el Distintivo ESR® (Cemefi).",
+        "color": "#00689D"
+    }
 }
 
 CERT_INFO = {
-    "ISO 14001": {"titulo": "ISO 14001 — Sistema de Gestión Ambiental", "que_es": "Estándar internacional para un Sistema de Gestión Ambiental (SGA).", "adicom": ["Aprovecha disciplina de ISO 9001", "Optimiza consumos en planta"], "clientes": ["Requisito en licitaciones clave"], "documentos": ["Política Ambiental", "Matriz Aspectos"], "capex": "$9,000 – $20,000 USD"},
-    "ISO 45001": {"titulo": "ISO 45001 — Seguridad y Salud", "que_es": "Estándar internacional de Seguridad y Salud en el Trabajo.", "adicom": ["Protección en armado de tableros", "Reduce prima IMSS"], "clientes": ["Cumple estándares HSE de clientes"], "documentos": ["Política SST", "Matriz IPERC"], "capex": "$6,000 – $15,000 USD"},
-    "PROFEPA": {"titulo": "Certificado Industria Limpia", "que_es": "Reconocimiento federal de desempeño ambiental superior.", "adicom": ["Previene clausuras o multas"], "clientes": ["Distintivo de alto prestigio local"], "documentos": ["Diagnóstico Ambiental"], "capex": "$3,500 – $6,000 USD"},
-    "CSIA": {"titulo": "CSIA Certification", "que_es": "Auditoría integral de calidad en integración de sistemas.", "adicom": ["Certificación ya obtenida", "Ventaja competitiva"], "clientes": ["Máxima madurez operativa"], "documentos": ["Registro CSIA"], "capex": "Vigente / Re-auditoría"},
-    "Distintivo ESR": {"titulo": "Distintivo ESR®", "que_es": "Reconocimiento de Cemefi en compromiso ESG.", "adicom": ["Sello reputacional integral"], "clientes": ["Iguala postura ESG de competidores"], "documentos": ["Inscripción Cemefi"], "capex": "$1,200 – $2,500 USD/año"}
+    "ISO 14001": {
+        "titulo": "ISO 14001 — Sistema de Gestión Ambiental",
+        "que_es": "Estándar internacional para un Sistema de Gestión Ambiental (SGA). Da un marco estructurado para identificar impactos ambientales (energía, agua, residuos, emisiones), fijar metas de reducción y mejorar continuamente.",
+        "adicom": [
+            "Aprovecha la disciplina documental existente en ISO 9001, reduciendo costos.",
+            "Disminuye riesgos regulatorios y optimiza consumos de energía e insumos en planta.",
+            "Iguala el estándar ESG corporativo de clientes de alta exigencia."
+        ],
+        "clientes": [
+            "Requisito clave en licitaciones de Ternium, Weir y Johnson Controls.",
+            "Proporciona evidencia auditable de responsabilidad ambiental."
+        ],
+        "documentos": ["Política Ambiental", "Matriz de Aspectos e Impactos", "Registro Legal", "Plan de Emergencias"],
+        "capex": "$9,000 – $20,000 USD · 4–9 meses"
+    },
+    "ISO 45001": {
+        "titulo": "ISO 45001 — Seguridad y Salud en el Trabajo",
+        "que_es": "Estándar internacional para un Sistema de Gestión de Seguridad y Salud en el Trabajo (SST). Identifica peligros, controla riesgos laborales y previene incidentes.",
+        "adicom": [
+            "Protección crítica en actividades de alto riesgo (ensamblaje de tableros y campo).",
+            "Permite reducir la Prima de Riesgo del IMSS a mediano plazo.",
+            "Integra procesos documentales compartidos con ISO 9001 e ISO 14001."
+        ],
+        "clientes": [
+            "Garantiza el cumplimiento con los exigentes estándares HSE de industria pesada.",
+            "Posiciona a Adicom al nivel de competidores globales como Hargrove."
+        ],
+        "documentos": ["Política SST", "Matriz IPERC", "Plan de Emergencias SST", "Registro de Incidentes"],
+        "capex": "$121,000 – $312,000 MXN · 6–12 meses"
+    },
+    "PROFEPA": {
+        "titulo": "Certificado Industria Limpia (PROFEPA)",
+        "que_es": "Reconocimiento del Gobierno Federal Mexicano a empresas que demuestran un desempeño ambiental superior a los mínimos exigidos por la ley.",
+        "adicom": [
+            "El proceso ante PROFEPA es gratuito; solo requiere pago de auditoría EMA.",
+            "Elimina el riesgo de clausura o multas ambientales en la sede de Monterrey."
+        ],
+        "clientes": [
+            "Distintivo gubernamental oficial de alto impacto reputacional en México."
+        ],
+        "documentos": ["Contrato Auditor EMA", "Diagnóstico Ambiental", "Plan de Acción Correctivo"],
+        "capex": "~$70,000 – $120,000 MXN · 6–12 meses"
+    },
+    "CSIA": {
+        "titulo": "CSIA Certification — Control System Integrators Association",
+        "que_es": "Auditoría integral de la calidad de gestión del negocio: proyectos, finanzas, desarrollo y estándares técnicos para integradores de sistemas.",
+        "adicom": [
+            "Adicom YA la posee: diferenciador competitivo frente a competidores locales.",
+            "Mayor ROI del plan comercial al ser una certificación ya obtenida."
+        ],
+        "clientes": [
+            "Demuestra máxima madurez operativa, reducción de riesgo y solidez financiera."
+        ],
+        "documentos": ["Registro Directorio CSIA", "Evidencia para Re-auditoría Trienal"],
+        "capex": "Aprovechamiento activo / Re-auditoría trienal"
+    },
+    "Distintivo ESR": {
+        "titulo": "Distintivo ESR® — Empresa Socialmente Responsable",
+        "que_es": "Reconocimiento otorgado por Cemefi que evalúa el compromiso integral ESG (Ambiental, Social y Gobernanza) en 9 áreas clave.",
+        "adicom": [
+            "Consolida todas las acciones ESG en un sello de gran prestigio reputacional.",
+            "Filtro óptimo para cerrar el ciclo de certificaciones."
+        ],
+        "clientes": [
+            "Iguala la postura ESG de integradores competidores clave como IGSA."
+        ],
+        "documentos": ["Inscripción Cemefi", "Evidencias de las 9 Áreas ESG", "Constancia Fiscal"],
+        "capex": "~$25,000 – $50,000 MXN / año"
+    }
 }
 
 CERT_ORDER = ["ISO 14001", "ISO 45001", "PROFEPA", "CSIA", "Distintivo ESR"]
 
+# =================================================================================================
+# 4. PARSEO ROBUSTO Y CÁLCULO DE FORMULAS EN PYTHON
+# =================================================================================================
 def _parse_locale_number(value):
-    if value is None or pd.isna(value): return 0.0
-    if isinstance(value, (int, float)): return float(value)
+    if value is None or pd.isna(value):
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
     s = str(value).strip().replace("$", "").replace("%", "").replace(" ", "")
-    if s == "" or s.upper() in {"NAN", "NONE", "---"}: return 0.0
-    if "," in s and "." in s: s = s.replace(".", "").replace(",", ".")
-    elif "," in s: s = s.replace(",", ".")
-    try: return float(s)
-    except ValueError: return 0.0
+    if s == "" or s.upper() in {"NAN", "NONE", "---"}:
+        return 0.0
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+def _parse_locale_percent(value):
+    n = _parse_locale_number(value)
+    return n / 100.0 if abs(n) > 1 else n
 
 def _parse_bool(value):
-    if isinstance(value, bool): return value
-    return str(value).strip().upper() in {"TRUE", "VERDADERO", "1", "SI", "SÍ", "X"}
+    if isinstance(value, bool):
+        return value
+    s = str(value).strip().upper()
+    return s in {"TRUE", "VERDADERO", "1", "SI", "SÍ", "X"}
 
-def smart_read_csv(url: str, must_have_col: str) -> Optional[pd.DataFrame]:
+def smart_read_csv(url: str, must_have_col: str, timeout: int = 12) -> Optional[pd.DataFrame]:
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, timeout=timeout)
         resp.raise_for_status()
         text = resp.content.decode("utf-8-sig", errors="replace")
         lines = text.splitlines()
-        header_idx = next((i for i, line in enumerate(lines) if must_have_col in line), 0)
-        df = pd.read_csv(io.StringIO(text), skiprows=header_idx).dropna(how="all")
-        return df.loc[:, ~df.columns.str.contains("^Unnamed")]
+        header_idx = 0
+        for i, line in enumerate(lines):
+            if must_have_col in line:
+                header_idx = i
+                break
+        df = pd.read_csv(io.StringIO(text), skiprows=header_idx)
+        df = df.dropna(how="all")
+        df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+        return df
     except Exception:
         return None
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=POLL_SECONDS, show_spinner=False)
 def cargar_datos():
+    """Carga y procesa datos, aplicando FÓRMULAS AUTOMÁTICAS en Python."""
     df_kpis = smart_read_csv(URL_KPIS, "Iniciativa_ESG")
     df_roadmap = smart_read_csv(URL_ROADMAP, "ID_Tarea")
 
@@ -313,25 +441,43 @@ def cargar_datos():
     if df_kpis is None or df_roadmap is None:
         fuente = "respaldo_local"
         df_kpis = pd.DataFrame({
-            "Iniciativa_ESG": ["EMS Ambiental", "Eficiencia Energetica", "Matriz IPERC", "Auditoría Final"],
-            "Norma_ISO": ["ISO 14001", "ISO 14001", "ISO 45001", "ISO 14001 / 45001"],
-            "Presupuesto_Asignado_USD": [45000, 30000, 25000, 22000],
-            "Gasto_Actual_USD": [32000, 28000, 21000, 5000],
-            "Ahorro_Generado_USD": [12500, 9800, 6000, 0],
-            "ODS_Impactado": ["ODS 13: Acción por el Clima", "ODS 7: Energía Asequible", "ODS 8: Trabajo Decente", "ODS 9: Industria e Innovación"]
+            "Iniciativa_ESG": ["Gestión Ambiental (EMS)", "Eficiencia Energética", "Reducción de Residuos",
+                               "Matriz de Riesgos (SST)", "Capacitación SST", "Auditoría Final ISO"],
+            "Norma_ISO": ["ISO 14001", "ISO 14001", "ISO 14001", "ISO 45001", "ISO 45001", "ISO 14001 / 45001"],
+            "Presupuesto_Asignado_USD": [45000, 30000, 15000, 25000, 18000, 22000],
+            "Gasto_Actual_USD": [32000, 28000, 9500, 21000, 14000, 5000],
+            "Ahorro_Generado_USD": [12500, 9800, 4200, 6000, 3500, 0],
+            "ODS_Impactado": ["ODS 13: Acción por el Clima", "ODS 7: Energía Asequible", "ODS 12: Producción Responsable",
+                              "ODS 8: Trabajo Decente", "ODS 3: Salud y Bienestar", "ODS 9: Industria e Innovación"],
         })
         df_roadmap = pd.DataFrame({
-            "ID_Tarea": list(range(1, 7)),
-            "Norma_ISO": ["ISO 14001"] * 3 + ["ISO 45001"] * 3,
-            "Requisito_Documental": ["Política ambiental", "Matriz aspectos", "Plan respuesta", "Política SST", "Matriz IPERC", "Plan emergencias"],
-            "Completado": [True, False, False, True, False, False],
-            "Fase": ["Fase 1", "Fase 1", "Fase 2", "Fase 1", "Fase 1", "Fase 2"]
+            "ID_Tarea": list(range(1, 13)),
+            "Norma_ISO": ["ISO 14001"] * 6 + ["ISO 45001"] * 6,
+            "Requisito_Documental": [
+                "Política ambiental y alcance del SGA", "Matriz de aspectos e impactos ambientales",
+                "Registro de requisitos legales aplicables", "Objetivos ambientales y plan de acción",
+                "Procedimientos de control operacional", "Plan de respuesta ante emergencias ambientales",
+                "Política de SST y alcance del sistema", "Matriz de peligros y evaluación de riesgos (IPERC)",
+                "Registro de requisitos legales de SST", "Objetivos de SST y plan de acción",
+                "Plan de respuesta ante emergencias SST", "Registro de incidentes y acciones correctivas",
+            ],
+            "Estado": ["Completado", "En Proceso", "Completado", "En Proceso", "Pendiente", "Pendiente",
+                       "Completado", "En Proceso", "Completado", "En Proceso", "Pendiente", "Pendiente"],
+            "Completado": [True, False, True, False, False, False, True, False, True, False, False, False],
+            "ODS_Impactado": ["ODS 13", "ODS 12", "ODS 16", "ODS 9", "ODS 12", "ODS 11",
+                              "ODS 8", "ODS 3", "ODS 8", "ODS 8", "ODS 3", "ODS 8"],
         })
 
+    # Limpieza de montos numéricos
     for col in ["Presupuesto_Asignado_USD", "Gasto_Actual_USD", "Ahorro_Generado_USD"]:
-        df_kpis[col] = df_kpis[col].apply(_parse_locale_number) if col in df_kpis.columns else 0.0
+        if col in df_kpis.columns:
+            df_kpis[col] = df_kpis[col].apply(_parse_locale_number)
+        else:
+            df_kpis[col] = 0.0
 
     df_kpis = df_kpis[df_kpis["Iniciativa_ESG"].astype(str).str.upper() != "TOTAL"].copy()
+
+    # --- FÓRMULAS DINÁMICAS EN PYTHON (Recálculo automático) ---
     df_kpis["Saldo_Disponible_USD"] = df_kpis["Presupuesto_Asignado_USD"] - df_kpis["Gasto_Actual_USD"]
     df_kpis["Pct_Ejecucion"] = (df_kpis["Gasto_Actual_USD"] / df_kpis["Presupuesto_Asignado_USD"].replace(0, 1)) * 100
     df_kpis["ROI_Calculado_Pct"] = (df_kpis["Ahorro_Generado_USD"] / df_kpis["Gasto_Actual_USD"].replace(0, 1)) * 100
@@ -344,27 +490,44 @@ def cargar_datos():
     df_roadmap["ID_Tarea"] = df_roadmap["ID_Tarea"].astype(int)
 
     if "Fase" not in df_roadmap.columns:
-        df_roadmap["Fase"] = "Fase 1"
+        df_roadmap["Fase"] = ""
+        for norma, grupo in df_roadmap.groupby("Norma_ISO"):
+            ids_ordenados = grupo.sort_values("ID_Tarea")["ID_Tarea"].tolist()
+            n_fases = min(3, max(1, len(ids_ordenados)))
+            size = -(-len(ids_ordenados) // n_fases)
+            chunks = [ids_ordenados[i:i + size] for i in range(0, len(ids_ordenados), size)]
+            for fase_num, chunk in enumerate(chunks, start=1):
+                df_roadmap.loc[df_roadmap["ID_Tarea"].isin(chunk), "Fase"] = f"Fase {fase_num}"
 
-    return df_kpis, df_roadmap, fuente, time.strftime("%H:%M:%S")
+    timestamp = time.strftime("%H:%M:%S")
+    return df_kpis, df_roadmap, fuente, timestamp
 
+# =================================================================================================
+# 5. ESTADO GLOBAL COMPARTIDO (Sincronización Multiusuario en Tiempo Real)
+# =================================================================================================
 @st.cache_resource
 def get_global_checklist_state() -> dict:
+    """Carga un estado compartido en memoria para TODOS los usuarios de la app."""
     if STATE_FILE.exists():
-        try: return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        except Exception: return {}
+        try:
+            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
     return {}
 
 def save_global_checklist_state(state: dict):
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
-def sync_state_with_sheet(df_roadmap: pd.DataFrame, state: dict, force_override=False) -> dict:
+def sync_state_with_sheet(df_roadmap: pd.DataFrame, state: dict) -> dict:
+    changed = False
     for _, row in df_roadmap.iterrows():
         key = str(int(row["ID_Tarea"]))
-        if key not in state or force_override:
+        if key not in state:
             state[key] = bool(row.get("Completado", False))
-    save_global_checklist_state(state)
+            changed = True
+    if changed:
+        save_global_checklist_state(state)
     return state
 
 def on_task_toggle(task_key: str, task_id: int):
@@ -373,111 +536,444 @@ def on_task_toggle(task_key: str, task_id: int):
     global_state[str(task_id)] = nuevo_valor
     save_global_checklist_state(global_state)
 
+# =================================================================================================
+# 6. CARGA INICIAL Y BARRA LATERAL
+# =================================================================================================
 df_kpis, df_roadmap, fuente_datos, ultima_hora = cargar_datos()
 global_checklist_state = get_global_checklist_state()
 global_checklist_state = sync_state_with_sheet(df_roadmap, global_checklist_state)
 
-df_roadmap["Completado_Efectivo"] = df_roadmap["ID_Tarea"].apply(lambda tid: global_checklist_state.get(str(tid), False))
+df_roadmap["Completado_Efectivo"] = df_roadmap["ID_Tarea"].apply(
+    lambda tid: global_checklist_state.get(str(tid), False)
+)
+
+certs_en_datos = [c for c in CERT_ORDER if c in set(df_roadmap["Norma_ISO"].astype(str))]
 
 st.sidebar.markdown("## 🌱 **Adicom · Controles**")
-st.sidebar.caption(f"Fuente: **{'Google Sheets ✅' if fuente_datos == 'google_sheets' else 'Respaldo Local ⚠️'}**")
-st.sidebar.caption(f"Última lectura: **{ultima_hora}**")
+st.sidebar.caption(f"Fuente de datos: **{'Google Sheets ✅' if fuente_datos == 'google_sheets' else 'Respaldo Local ⚠️'}**")
+st.sidebar.caption(f"Última lectura: **{ultima_hora}** (Polling: {POLL_SECONDS}s)")
 
-if st.sidebar.button("🔄 Forzar Recarga desde Excel"):
+if st.sidebar.button("🔄 Actualizar Datos Ahora"):
     st.cache_data.clear()
-    st.cache_resource.clear()
-    global_checklist_state = sync_state_with_sheet(df_roadmap, {}, force_override=True)
     st.rerun()
 
 if HAS_AUTOREFRESH:
-    st_autorefresh(interval=POLL_SECONDS * 1000, key="auto_refresh")
+    auto = st.sidebar.checkbox(f"🔁 Sincronización Automática ({POLL_SECONDS}s)", value=True)
+    if auto:
+        st_autorefresh(interval=POLL_SECONDS * 1000, key="auto_refresh_global")
 
 filtro_certs = st.sidebar.multiselect("Filtrar Certificaciones:", CERT_ORDER, default=CERT_ORDER)
 
+with st.sidebar.expander("🛠️ Opciones Avanzadas"):
+    if st.button("Reiniciar Checklist Global"):
+        global_checklist_state.clear()
+        save_global_checklist_state({})
+        st.rerun()
+
+# =================================================================================================
+# 7. ENCABEZADO PRINCIPAL
+# =================================================================================================
 st.markdown("""
 <div class="adicom-hero">
     <h1>ADICOM — Dashboard ESG & Certificaciones Corporativas</h1>
-    <p>Plataforma de monitoreo estratégico: alineación ODS (ONU), ejecución financiera automatizada y roadmap dinámico.</p>
+    <p>Plataforma de monitoreo estratégico: alineación ODS (ONU), ejecución financiera automatizada,
+    matriz de decisión y roadmap de certificación en tiempo real.</p>
 </div>
 """, unsafe_allow_html=True)
 
-tab_labels = ["📊 Resumen General", "🇺🇳 Objetivos ODS (ONU)", "🤖 Consultor IA", "⚖️ Matriz & Simulador"] + [c for c in CERT_ORDER if c in filtro_certs]
+# =================================================================================================
+# 8. PESTAÑAS PRINCIPALES (TABS)
+# =================================================================================================
+tab_labels = [
+    "📊 Resumen General",
+    "🇺🇳 Objetivos ODS (ONU)",
+    "🤖 Consultor Estratégico IA",
+    "⚖️ Matriz & Simulador ESG",
+] + [c for c in CERT_ORDER if c in filtro_certs]
+
 tabs = st.tabs(tab_labels)
 
-# --- TAB 0: RESUMEN GENERAL ---
+# -------------------------------------------------------------------------------------------
+# TAB 0: RESUMEN GENERAL
+# -------------------------------------------------------------------------------------------
 with tabs[0]:
     df_kpis_f = df_kpis[df_kpis["Norma_list"].apply(lambda lst: any(c in lst for c in filtro_certs))]
     df_roadmap_f = df_roadmap[df_roadmap["Norma_ISO"].isin(filtro_certs)]
 
-    t_pres = df_kpis_f["Presupuesto_Asignado_USD"].sum()
-    t_gasto = df_kpis_f["Gasto_Actual_USD"].sum()
-    t_ahorro = df_kpis_f["Ahorro_Generado_USD"].sum()
+    total_presupuesto = df_kpis_f["Presupuesto_Asignado_USD"].sum()
+    total_gasto = df_kpis_f["Gasto_Actual_USD"].sum()
+    total_ahorro = df_kpis_f["Ahorro_Generado_USD"].sum()
+    roi_promedio = df_kpis_f["ROI_Calculado_Pct"].mean()
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Presupuesto Total", f"${t_pres:,.0f} USD")
-    c2.metric("Inversión Ejecutada", f"${t_gasto:,.0f} USD", delta=f"${(t_pres - t_gasto):,.0f} disp.")
-    c3.metric("Ahorro Generado", f"${t_ahorro:,.0f} USD")
-    c4.metric("ROI Promedio", f"{df_kpis_f['ROI_Calculado_Pct'].mean():.1f}%")
+    c1.metric("Presupuesto Total", f"${total_presupuesto:,.0f} USD")
+    c2.metric("Inversión Ejecutada", f"${total_gasto:,.0f} USD",
+              delta=f"${(total_presupuesto - total_gasto):,.0f} disponible")
+    c3.metric("Ahorro Generado", f"${total_ahorro:,.0f} USD")
+    c4.metric("ROI Promedio Proyectado", f"{roi_promedio:.1f}%")
 
-    tot_t = len(df_roadmap_f)
-    comp_t = int(df_roadmap_f["Completado_Efectivo"].sum())
-    pct_t = (comp_t / tot_t * 100) if tot_t else 0
-    st.markdown(f"**Avance Global:** {comp_t} de {tot_t} tareas ({pct_t:.1f}%)")
-    st.progress(pct_t / 100)
+    total_tareas = len(df_roadmap_f)
+    completadas = int(df_roadmap_f["Completado_Efectivo"].sum())
+    pct_avance = (completadas / total_tareas * 100) if total_tareas else 0
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(f"**Avance Global del Roadmap:** {completadas} de {total_tareas} tareas completadas ({pct_avance:.1f}%)")
+    st.progress(pct_avance / 100)
 
+    st.markdown("<br>", unsafe_allow_html=True)
     g1, g2 = st.columns(2)
+
     with g1:
+        st.subheader("📊 Control Financiero por Iniciativa")
         fig_barras = go.Figure()
-        fig_barras.add_trace(go.Bar(x=df_kpis_f["Iniciativa_ESG"], y=df_kpis_f["Presupuesto_Asignado_USD"], name="Presupuesto", marker_color=COLORS["teal"]))
-        fig_barras.add_trace(go.Bar(x=df_kpis_f["Iniciativa_ESG"], y=df_kpis_f["Gasto_Actual_USD"], name="Gasto", marker_color=COLORS["green"]))
-        fig_barras = aplicar_estilo_grafica(fig_barras, "Control Financiero por Iniciativa")
-        fig_barras.update_layout(barmode="group", height=350)
+        fig_barras.add_trace(go.Bar(
+            x=df_kpis_f["Iniciativa_ESG"],
+            y=df_kpis_f["Presupuesto_Asignado_USD"],
+            name="Presupuesto Asignado",
+            marker_color=COLORS["teal"]
+        ))
+        fig_barras.add_trace(go.Bar(
+            x=df_kpis_f["Iniciativa_ESG"],
+            y=df_kpis_f["Gasto_Actual_USD"],
+            name="Gasto Actual",
+            marker_color=COLORS["green"]
+        ))
+        fig_barras.update_layout(
+            barmode="group",
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF",
+            font=dict(color="#0F172A"),
+            xaxis=dict(tickangle=-25, gridcolor="#E9ECEF"),
+            yaxis=dict(gridcolor="#E9ECEF"),
+            height=370,
+            legend=dict(orientation="h", y=1.12),
+            margin=dict(l=20, r=20, t=30, b=50)
+        )
         st.plotly_chart(fig_barras, use_container_width=True)
 
+        with st.expander("🤖 **Análisis de Control Financiero (Gemini IA)**"):
+            if st.button("✨ Generar Análisis Financiero con IA", key="btn_ia_fin"):
+                with st.spinner("Analizando presupuesto vs gasto..."):
+                    analisis = explicar_grafica_ia(
+                        df_kpis_f[["Iniciativa_ESG", "Presupuesto_Asignado_USD", "Gasto_Actual_USD"]],
+                        "Control Financiero por Iniciativa"
+                    )
+                    st.markdown(analisis)
+
     with g2:
-        fig_pie = px.pie(df_kpis_f, names="ODS_Impactado", values="Presupuesto_Asignado_USD", hole=0.4, color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY)
-        fig_pie = aplicar_estilo_grafica(fig_pie, "Distribución ODS (ONU)")
-        fig_pie.update_layout(height=350)
+        st.subheader("🎯 Distribución por ODS (ONU)")
+        fig_pie = px.pie(
+            df_kpis_f,
+            names="ODS_Impactado",
+            values="Presupuesto_Asignado_USD",
+            hole=0.45,
+            color_discrete_sequence=PLOTLY_TEMPLATE_COLORWAY
+        )
+        fig_pie.update_layout(
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF",
+            font=dict(color="#0F172A"),
+            height=370,
+            legend=dict(orientation="h", y=-0.25),
+            margin=dict(l=20, r=20, t=30, b=50)
+        )
         st.plotly_chart(fig_pie, use_container_width=True)
 
-# --- TAB 1: OBJETIVOS ODS ---
+        with st.expander("🤖 **Análisis Ejecutivo ODS (Gemini IA)**"):
+            if st.button("✨ Generar Análisis ODS con IA", key="btn_ia_ods"):
+                with st.spinner("Analizando alineación ODS..."):
+                    analisis_ods = explicar_grafica_ia(
+                        df_kpis_f[["ODS_Impactado", "Presupuesto_Asignado_USD"]],
+                        "Distribución por ODS (ONU)"
+                    )
+                    st.markdown(analisis_ods)
+
+    st.markdown("---")
+    with st.expander("📄 Ver Datos en Vivo y Cálculos Automáticos de Python"):
+        st.dataframe(df_kpis[["Iniciativa_ESG", "Norma_ISO", "Presupuesto_Asignado_USD",
+                              "Gasto_Actual_USD", "Saldo_Disponible_USD", "Pct_Ejecucion",
+                              "Ahorro_Generado_USD", "ROI_Calculado_Pct"]], use_container_width=True)
+
+# -------------------------------------------------------------------------------------------
+# TAB 1: OBJETIVOS DE DESARROLLO SOSTENIBLE (ODS) - NUEVO SECTOR DEDICADO
+# -------------------------------------------------------------------------------------------
 with tabs[1]:
-    st.markdown("### 🇺🇳 Objetivos ODS (ONU) en Adicom")
-    for code, info in ODS_INFO.items():
-        st.markdown(f"""
-        <div class="ods-card" style="border-left-color:{info['color']}">
-            <h4 style="color:{info['color']} !important; margin:0;">{info['nombre']}</h4>
-            <p style="margin:4px 0;">{info['descripcion']}</p>
-            <p style="background-color:#F8F9FA; padding:6px; border-radius:4px; font-size:0.9rem;"><b>Impacto Adicom:</b> {info['impacto_adicom']}</p>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown("### 🇺🇳 Marco de Sostenibilidad — Objetivos de Desarrollo Sostenible (ONU)")
+    st.markdown("""
+    Los Objetivos de Desarrollo Sostenible (ODS) constituyen un llamamiento universal de las Naciones Unidas.
+    Adicom integra estos objetivos dentro de su estrategia core de ingeniería, automatización y certificaciones.
+    """)
 
-# --- TAB 2: CONSULTOR GEMINI IA ---
+    # Distribución de presupuesto por ODS acumulado
+    ods_summary = df_kpis.groupby("ODS_Impactado").agg(
+        Presupuesto_Total=("Presupuesto_Asignado_USD", "sum"),
+        Iniciativas_Contadas=("Iniciativa_ESG", "count")
+    ).reset_index()
+
+    col_ods1, col_ods2 = st.columns([1, 1])
+    with col_ods1:
+        st.markdown("#### 📊 Presupuesto Invertido por ODS")
+        fig_ods_bar = px.bar(
+            ods_summary,
+            x="Presupuesto_Total",
+            y="ODS_Impactado",
+            orientation="h",
+            color="Presupuesto_Total",
+            color_continuous_scale="Viridis",
+            labels={"Presupuesto_Total": "Presupuesto (USD)", "ODS_Impactado": "ODS"}
+        )
+        fig_ods_bar.update_layout(
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF",
+            font=dict(color="#0F172A"),
+            height=340,
+            coloraxis_showscale=False
+        )
+        st.plotly_chart(fig_ods_bar, use_container_width=True)
+
+    with col_ods2:
+        st.markdown("#### 🎯 Resumen de Impacto Directo")
+        st.info(f"Adicom impacta directamente a **{len(ods_summary)} Objetivos ODS**, "
+                f"con una inversión total comprometida de **${ods_summary['Presupuesto_Total'].sum():,.0f} USD**.")
+
+    st.markdown("---")
+    st.markdown("### 📘 Catálogo de ODS Aplicados en Adicom")
+
+    cols_ods = st.columns(2)
+    for idx, (code, info) in enumerate(ODS_INFO.items()):
+        with cols_ods[idx % 2]:
+            st.markdown(f"""
+            <div class="ods-card" style="border-left-color: {info['color']};">
+                <h4 style="margin: 0; color: {info['color']} !important;">{info['nombre']}</h4>
+                <p style="margin-top: 6px; font-size: 0.9rem; color: #334155;"><b>Propósito ONU:</b> {info['descripcion']}</p>
+                <p style="margin-top: 4px; font-size: 0.9rem; background-color: #F8F9FA; padding: 8px; border-radius: 6px; color: #0F172A;">
+                    <b>💡 Aplicación en Adicom:</b> {info['impacto_adicom']}
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+# -------------------------------------------------------------------------------------------
+# TAB 2: CONSULTOR ESTRATÉGICO IA (GEMINI ADVISOR) - NUEVA HERRAMIENTA
+# -------------------------------------------------------------------------------------------
 with tabs[2]:
-    st.markdown("### 💭 Consulta a Gemini")
-    user_query = st.text_area(
-        "Escribe tu consulta ejecutiva:",
-        value="Redacta 3 puntos clave para vender proyectos de automatización a Ternium destacando las certificaciones ISO 14001 y CSIA de Adicom.",
-        height=130
-    )
-    if st.button("🚀 Consultar a Gemini IA"):
-        if user_query.strip():
-            with st.spinner("Gemini está procesando..."):
-                st.markdown(explicar_grafica_ia(df_kpis, "Consulta Libre", user_query))
+    st.markdown("### 🤖 Asistente Virtual Ejecutivo — Gemini IA Strategist")
+    st.markdown("Genera recomendaciones personalizadas y estrategias comerciales alineadas a ESG para Adicom.")
 
-# --- TAB 3: MATRIZ Y SIMULADOR ---
+    c_prompt1, c_prompt2 = st.columns([2, 1])
+
+    with c_prompt2:
+        st.markdown("#### 🎯 Plantillas Rápidas")
+        opcion_prompt = st.radio(
+            "Selecciona un enfoque:",
+            [
+                "Propuesta Comercial ESG para Clientes (Ternium/JCI)",
+                "Auditoría Interna ISO 14001 y 45001",
+                "Estrategia de Reducción de Huella de Carbono",
+                "Pregunta Personalizada"
+            ]
+        )
+
+    with c_prompt1:
+        st.markdown("#### 💬 Consulta a Gemini")
+        if opcion_prompt == "Propuesta Comercial ESG para Clientes (Ternium/JCI)":
+            query_default = "Redacta 3 puntos clave para vender proyectos de automatización a Ternium destacando las certificaciones ISO 14001 y CSIA de Adicom."
+        elif opcion_prompt == "Auditoría Interna ISO 14001 y 45001":
+            query_default = "Diseña una lista de verificación ejecutiva con 5 puntos esenciales para auditar la planta de Monterrey antes de la certificación."
+        elif opcion_prompt == "Estrategia de Reducción de Huella de Carbono":
+            query_default = "Propón 3 iniciativas de eficiencia energética industrial con mayor ROI para Adicom."
+        else:
+            query_default = ""
+
+        user_query = st.text_area("Escribe tu consulta ejecutiva:", value=query_default, height=130)
+
+        if st.button("🚀 Consultar a Gemini IA", key="btn_gemini_query"):
+            if user_query.strip():
+                with st.spinner("Gemini está analizando tu solicitud..."):
+                    try:
+                        genai.configure(api_key=st.secrets.get("OPENAI_API_KEY", ""))
+                        model = genai.GenerativeModel("gemini-1.5-flash")
+                        res = model.generate_content(
+                            f"Actúa como Consultor Senior ESG para la empresa Adicom. Responde de forma ejecutiva, clara y estructurada:\n{user_query}"
+                        )
+                        st.markdown("### 📋 Recomendación Estratégica:")
+                        st.markdown(res.text)
+                    except Exception as e:
+                        st.error(f"Error al consultar a Gemini: {e}")
+            else:
+                st.warning("Por favor ingresa una pregunta o selecciona una plantilla.")
+
+# -------------------------------------------------------------------------------------------
+# TAB 3: MATRIZ Y SIMULADOR DE PRESUPUESTO - NUEVA SECCIÓN
+# -------------------------------------------------------------------------------------------
 with tabs[3]:
-    st.markdown("### ⚖️ Matriz & Simulador Presupuestal")
-    ex = st.slider("Incremento Simulado USD:", 0, 50000, 10000)
-    st.metric("Nuevo Presupuesto Simulado", f"${(t_pres + ex):,.0f} USD")
+    st.markdown("### ⚖️ Matriz Comparativa de Certificaciones")
+    st.markdown("Evaluación ejecutiva de factibilidad, inversión y retorno comercial.")
 
-# --- TABS CERTIFICACIONES ---
+    matriz_data = pd.DataFrame([
+        {"Certificación": "CSIA", "Esfuerzo": "Bajo (Obtenida)", "Tiempo": "Inmediato", "CAPEX Est.": "$0 - $1k USD", "ROI Comercial": "Muy Alto", "Estatus": "Vigente / En Aprovechamiento"},
+        {"Certificación": "ISO 14001", "Esfuerzo": "Medio", "Tiempo": "4 - 9 Meses", "CAPEX Est.": "$9k - $20k USD", "ROI Comercial": "Alto (Filtro Licitación)", "Estatus": "En Desarrollo"},
+        {"Certificación": "ISO 45001", "Esfuerzo": "Medio - Alto", "Tiempo": "6 - 12 Meses", "CAPEX Est.": "$6k - $15k USD", "ROI Comercial": "Medio-Alto (Seguridad IMSS)", "Estatus": "En Desarrollo"},
+        {"Certificación": "PROFEPA", "Esfuerzo": "Medio", "Tiempo": "6 - 12 Meses", "CAPEX Est.": "$3.5k - $6k USD", "ROI Comercial": "Reputacional Local", "Estatus": "Planificado"},
+        {"Certificación": "Distintivo ESR", "Esfuerzo": "Bajo (Fase Final)", "Tiempo": "3 - 6 Meses", "CAPEX Est.": "$1.2k - $2.5k USD/año", "ROI Comercial": "Marca Empleadora", "Estatus": "Fase Final Roadmap"}
+    ])
+    st.dataframe(matriz_data, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("### 🧮 Simulador de Escenarios de Inversión ESG")
+    st.caption("Ajusta los parámetros para evaluar el impacto en ahorro e incremento del presupuesto global.")
+
+    sim_col1, sim_col2 = st.columns(2)
+    with sim_col1:
+        extra_budget = st.slider("Incremento de Presupuesto Simulado (USD):", 0, 50000, 10000, step=5000)
+        roi_estimado = st.slider("ROI Proyectado (%):", 5, 30, 18)
+
+    with sim_col2:
+        nuevo_presupuesto_total = total_presupuesto + extra_budget
+        ahorro_adicional = extra_budget * (roi_estimado / 100.0)
+        nuevo_ahorro_total = total_ahorro + ahorro_adicional
+
+        st.metric("Nuevo Presupuesto Proyectado", f"${nuevo_presupuesto_total:,.0f} USD", delta=f"+${extra_budget:,.0f} USD")
+        st.metric("Nuevo Ahorro Estimado Total", f"${nuevo_ahorro_total:,.0f} USD", delta=f"+${ahorro_adicional:,.0f} USD")
+
+# -------------------------------------------------------------------------------------------
+# TABS 4..N: PESTAÑAS INDIVIDUALES POR CERTIFICACIÓN
+# -------------------------------------------------------------------------------------------
+def render_roadmap_path(cert: str, df_cert_roadmap: pd.DataFrame):
+    fases = list(dict.fromkeys(df_cert_roadmap.sort_values("ID_Tarea")["Fase"]))
+    if not fases:
+        st.info("Esta certificación no tiene tareas de roadmap cargadas.")
+        return
+
+    estado_fases = {}
+    fase_previa_completa = True
+    for fase in fases:
+        tareas_fase = df_cert_roadmap[df_cert_roadmap["Fase"] == fase]
+        completas = tareas_fase["Completado_Efectivo"].sum()
+        total = len(tareas_fase)
+        done = (completas == total and total > 0)
+        status = "done" if done else ("unlocked" if fase_previa_completa else "locked")
+        estado_fases[fase] = {"status": status, "completas": completas, "total": total}
+        fase_previa_completa = fase_previa_completa and done
+
+    cols = st.columns(len(fases))
+    accent = CERT_ACCENT.get(cert, COLORS["teal"])
+    for i, (col, fase) in enumerate(zip(cols, fases)):
+        info = estado_fases[fase]
+        with col:
+            icono, badge_class, badge_txt = (
+                ("✅", "badge-done", "Completa") if info["status"] == "done"
+                else ("🟢", "badge-progress", "En curso") if info["status"] == "unlocked"
+                else ("🔒", "badge-locked", "Bloqueada")
+            )
+            st.markdown(f"""
+                <div style="text-align:center;">
+                    <div style="font-size:1.8rem;">{icono}</div>
+                    <div style="font-weight:700; font-size:0.85rem; min-height:2.2em; color: #0F172A;">{fase}</div>
+                    <span class="{badge_class}">{badge_txt} · {info['completas']}/{info['total']}</span>
+                </div>
+            """, unsafe_allow_html=True)
+            if info["status"] != "locked":
+                if st.button(f"Ver {fase}", key=f"btn_{cert}_{fase}", use_container_width=True):
+                    st.session_state[f"fase_activa_{cert}"] = fase
+            else:
+                st.button(f"Ver {fase}", key=f"btn_{cert}_{fase}", use_container_width=True, disabled=True)
+
+    fase_activa = st.session_state.get(f"fase_activa_{cert}")
+    if fase_activa not in fases or estado_fases.get(fase_activa, {}).get("status") == "locked":
+        fase_activa = next((f for f in fases if estado_fases[f]["status"] == "unlocked"), fases[-1])
+        st.session_state[f"fase_activa_{cert}"] = fase_activa
+
+    if all(v["status"] == "done" for v in estado_fases.values()):
+        st.markdown(f'<div class="celebrate">🎖️ ¡Roadmap completo! {cert} lista para auditoría.</div>', unsafe_allow_html=True)
+
+    st.markdown(f"#### 📋 Checklist Sincronizado — {fase_activa}")
+    tareas_fase = df_cert_roadmap[df_cert_roadmap["Fase"] == fase_activa].sort_values("ID_Tarea")
+    
+    for _, row in tareas_fase.iterrows():
+        task_id = int(row["ID_Tarea"])
+        key = f"{cert}_{task_id}"
+        st.checkbox(
+            row["Requisito_Documental"],
+            value=global_checklist_state.get(str(task_id), False),
+            key=f"chk_{key}",
+            on_change=on_task_toggle,
+            args=(key, task_id),
+        )
+
 for cert in CERT_ORDER:
-    if cert not in filtro_certs: continue
-    t_idx = tab_labels.index(cert)
-    with tabs[t_idx]:
-        st.markdown(f"### {cert}")
-        df_sub = df_roadmap[df_roadmap["Norma_ISO"] == cert]
-        for _, r in df_sub.iterrows():
-            tid = int(r["ID_Tarea"])
-            st.checkbox(r["Requisito_Documental"], value=global_checklist_state.get(str(tid), False), key=f"chk_{cert}_{tid}", on_change=on_task_toggle, args=(f"{cert}_{tid}", tid))
+    if cert not in filtro_certs:
+        continue
+    tab_idx = tab_labels.index(cert)
+    with tabs[tab_idx]:
+        info = CERT_INFO[cert]
+        accent = CERT_ACCENT.get(cert, COLORS["teal"])
+
+        st.markdown(f"### {info['titulo']}")
+        st.markdown(
+            f'<div style="background-color:#F8F9FA; border-left:4px solid {accent}; '
+            f'padding:14px 18px; border-radius:8px; margin-bottom:16px; color:#0F172A;">{info["que_es"]}</div>',
+            unsafe_allow_html=True,
+        )
+
+        colA, colB = st.columns(2)
+        with colA:
+            st.markdown('<div class="cert-card"><h4>✅ Ventajas para Adicom</h4>' +
+                        "".join(f"<p style='color:#334155;'>• {b}</p>" for b in info["adicom"]) + "</div>", unsafe_allow_html=True)
+        with colB:
+            st.markdown('<div class="cert-card"><h4>🤝 Ventajas para Clientes</h4>' +
+                        "".join(f"<p style='color:#334155;'>• {b}</p>" for b in info["clientes"]) + "</div>", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("**📄 Documentos Clave Requeridos:**")
+        st.markdown("".join(f'<span class="doc-chip">{d}</span>' for d in info["documentos"]), unsafe_allow_html=True)
+        st.caption(f"💰 CAPEX Estimado: {info['capex']}")
+
+        st.markdown("---")
+
+        df_cert_kpis = df_kpis[df_kpis["Norma_list"].apply(lambda lst: cert in lst)]
+        df_cert_roadmap = df_roadmap[df_roadmap["Norma_ISO"] == cert]
+
+        if len(df_cert_roadmap) > 0:
+            st.markdown("#### 🗺️ Roadmap de Certificación (Sincronizado multiusuario)")
+            render_roadmap_path(cert, df_cert_roadmap)
+        else:
+            st.warning(f"No hay tareas registradas para **{cert}** en el Google Sheet aún.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 💵 Control Financiero de la Certificación")
+        if len(df_cert_kpis):
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Presupuesto", f"${df_cert_kpis['Presupuesto_Asignado_USD'].sum():,.0f} USD")
+            k2.metric("Gastado", f"${df_cert_kpis['Gasto_Actual_USD'].sum():,.0f} USD")
+            k3.metric("Ahorro Generado", f"${df_cert_kpis['Ahorro_Generado_USD'].sum():,.0f} USD")
+
+            fig_cert = go.Figure()
+            fig_cert.add_trace(go.Bar(x=df_cert_kpis["Iniciativa_ESG"], y=df_cert_kpis["Presupuesto_Asignado_USD"],
+                                       name="Presupuesto", marker_color=accent))
+            fig_cert.add_trace(go.Bar(x=df_cert_kpis["Iniciativa_ESG"], y=df_cert_kpis["Gasto_Actual_USD"],
+                                       name="Gasto Actual", marker_color=COLORS["green"]))
+            fig_cert.update_layout(
+                barmode="group",
+                paper_bgcolor="#FFFFFF",
+                plot_bgcolor="#FFFFFF",
+                font=dict(color="#0F172A"),
+                height=320,
+                xaxis=dict(tickangle=-20, gridcolor="#E9ECEF"),
+                yaxis=dict(gridcolor="#E9ECEF"),
+                legend=dict(orientation="h", y=1.15)
+            )
+            st.plotly_chart(fig_cert, use_container_width=True)
+
+            with st.expander("🤖 **Análisis Financiero de Certificación (Gemini IA)**"):
+                if st.button(f"✨ Analizar {cert} con IA", key=f"btn_ia_{cert}"):
+                    with st.spinner("Generando análisis con Gemini..."):
+                        analisis_cert = explicar_grafica_ia(
+                            df_cert_kpis[["Iniciativa_ESG", "Presupuesto_Asignado_USD", "Gasto_Actual_USD"]],
+                            f"Financiero - {cert}"
+                        )
+                        st.markdown(analisis_cert)
+        else:
+            st.info("Sin datos financieros registrados para esta certificación.")
+
+st.markdown("---")
+st.caption("Adicom · Dashboard ESG — Sistema de Gestión Automatizado | Sincronización en vivo con Google Sheets.")
