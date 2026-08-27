@@ -1,4 +1,10 @@
-streamlit
-pandas
-plotly
-openpyxl
+streamlit>=1.38
+pandas>=2.0
+plotly>=5.20
+requests>=2.31
+openpyxl>=3.1
+streamlit-autorefresh>=1.0.1
+
+# Opcionales — solo si activas la escritura real hacia Google Sheets (ver README_DASHBOARD.md)
+# gspread>=6.0
+# google-auth>=2.30
