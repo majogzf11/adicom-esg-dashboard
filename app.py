@@ -30,9 +30,10 @@ import requests
 import streamlit as st
 import google.generativeai as genai
 
-# Configurar API Key de Gemini
-if "OPENAI_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["OPENAI_API_KEY"])
+# Configurar API Key de Gemini con soporte para ambas claves
+api_key_global = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+if api_key_global:
+    genai.configure(api_key=api_key_global)
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -227,43 +228,44 @@ st.markdown(f"""
 PLOTLY_FONT_BLACK = dict(color="#000000", family="Segoe UI, sans-serif")
 
 # =================================================================================================
-# 2. MOTOR DE IA OPTIMIZADO CON CACHÉ
+# 2. MOTOR DE IA OPTIMIZADO CON FALLBACK Y CACHÉ
 # =================================================================================================
-@st.cache_data(ttl=600, show_spinner=False)
-def explicar_grafica_ia(df_datos: pd.DataFrame, titulo_grafica: str, contexto_extra: str = "") -> str:
-    if "OPENAI_API_KEY" not in st.secrets:
+def llamar_gemini_fallback(prompt_texto: str) -> str:
+    """Función auxiliar que intenta llamar a modelos disponibles de Gemini para evitar el error 404."""
+    api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+    if not api_key:
         return "⚠️ Clave de API no configurada en `st.secrets`."
 
-    try:
-        genai.configure(api_key=st.secrets["OPENAI_API_KEY"])
-        resumen_datos = df_datos.to_string(index=False)
+    genai.configure(api_key=api_key)
+    modelos_candidatos = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-flash-latest"]
 
-        prompt = f"""
-        Actúa como un Consultor Senior en Sostenibilidad ESG y Estrategia Corporativa para la empresa Adicom. 
-        Analiza los siguientes datos de la gráfica: "{titulo_grafica}".
-        {contexto_extra}
-        
-        Datos:
-        {resumen_datos}
-        
-        Proporciona un reporte ejecutivo breve en español (máximo 90 palabras) estructurado así:
-        - **📌 Hallazgo Principal:** (Conclusión clave)
-        - **⚠️ Oportunidad/Riesgo:** (Dato crítico o desviación)
-        - **🚀 Recomendación:** (Acción concreta recomendada para la gerencia)
-        """
+    for m in modelos_candidatos:
+        try:
+            model = genai.GenerativeModel(m)
+            response = model.generate_content(prompt_texto)
+            return response.text
+        except Exception:
+            continue
 
-        modelos = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
-        for m in modelos:
-            try:
-                model = genai.GenerativeModel(m)
-                response = model.generate_content(prompt)
-                return response.text
-            except Exception:
-                continue
+    return "⚠️ No fue posible comunicarse con ningún modelo de Gemini disponible."
 
-        return "⚠️ No fue posible comunicarse con los modelos de Gemini disponibles."
-    except Exception as e:
-        return f"⚠️ Error al generar análisis: {str(e)}"
+@st.cache_data(ttl=600, show_spinner=False)
+def explicar_grafica_ia(df_datos: pd.DataFrame, titulo_grafica: str, contexto_extra: str = "") -> str:
+    resumen_datos = df_datos.to_string(index=False)
+    prompt = f"""
+    Actúa como un Consultor Senior en Sostenibilidad ESG y Estrategia Corporativa para la empresa Adicom. 
+    Analiza los siguientes datos de la gráfica: "{titulo_grafica}".
+    {contexto_extra}
+    
+    Datos:
+    {resumen_datos}
+    
+    Proporciona un reporte ejecutivo breve en español (máximo 90 palabras) estructurado así:
+    - **📌 Hallazgo Principal:** (Conclusión clave)
+    - **⚠️ Oportunidad/Riesgo:** (Dato crítico o desviación)
+    - **🚀 Recomendación:** (Acción concreta recomendada para la gerencia)
+    """
+    return llamar_gemini_fallback(prompt)
 
 # =================================================================================================
 # 3. BASE DE CONOCIMIENTO DE ODS Y CERTIFICACIONES
@@ -802,16 +804,13 @@ with tabs[2]:
         if st.button("🚀 Consultar a Gemini IA", key="btn_gemini_query"):
             if user_query.strip():
                 with st.spinner("Gemini está analizando tu solicitud..."):
-                    try:
-                        genai.configure(api_key=st.secrets.get("OPENAI_API_KEY", ""))
-                        model = genai.GenerativeModel("gemini-1.5-flash")
-                        res = model.generate_content(
-                            f"Actúa como Consultor Senior ESG para la empresa Adicom. Responde de forma ejecutiva, clara y estructurada:\n{user_query}"
-                        )
-                        st.markdown("### 📋 Recomendación Estratégica:")
-                        st.markdown(res.text)
-                    except Exception as e:
-                        st.error(f"Error al consultar a Gemini: {e}")
+                    prompt_completo = (
+                        "Actúa como Consultor Senior ESG para la empresa Adicom. "
+                        f"Responde de forma ejecutiva, clara y estructurada:\n{user_query}"
+                    )
+                    respuesta = llamar_gemini_fallback(prompt_completo)
+                    st.markdown("### 📋 Recomendación Estratégica:")
+                    st.markdown(respuesta)
             else:
                 st.warning("Por favor ingresa una pregunta o selecciona una plantilla.")
 
