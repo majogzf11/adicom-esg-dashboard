@@ -44,13 +44,32 @@ def cargar_datos():
         df_kpis = pd.read_csv(URL_KPIS, skiprows=2)
         df_roadmap = pd.read_csv(URL_ROADMAP, skiprows=2)
         
-        # Limpia posibles espacios extra en los nombres de las columnas
+        # Limpia espacios extra en los nombres de las columnas
         df_kpis.columns = df_kpis.columns.str.strip()
         df_roadmap.columns = df_roadmap.columns.str.strip()
         
+        # Limpieza y conversión de columnas numéricas en df_kpis
+        columnas_numericas = [
+            "Presupuesto_Asignado_USD", 
+            "Gasto_Actual_USD", 
+            "Ahorro_Generado_USD", 
+            "ROI_Proyectado_Pct"
+        ]
+        
+        for col in columnas_numericas:
+            if col in df_kpis.columns:
+                # Elimina $, %, comas y espacios antes de convertir a número
+                col_clean = df_kpis[col].astype(str)\
+                                        .str.replace('$', '', regex=False)\
+                                        .str.replace(',', '', regex=False)\
+                                        .str.replace('%', '', regex=False)\
+                                        .str.strip()
+                df_kpis[col] = pd.to_numeric(col_clean, errors='coerce').fillna(0)
+                
         return df_kpis, df_roadmap
+
     except Exception:
-        # Datos de respaldo en caso de que la URL aún no esté vinculada o falle
+        # Datos de respaldo en caso de que falle la carga del CSV
         df_kpis = pd.DataFrame({
             "Iniciativa_ESG": ["Gestión Ambiental (EMS)", "Eficiencia Energética", "Reducción de Residuos", "Matriz de Riesgos (SST)", "Capacitación SST", "Auditoría Final ISO"],
             "Norma_ISO": ["ISO 14001", "ISO 14001", "ISO 14001", "ISO 45001", "ISO 45001", "ISO 14001 / 45001"],
@@ -61,6 +80,24 @@ def cargar_datos():
             "ODS_Impactado": ["ODS 13: Acción por el Clima", "ODS 7: Energía Asequible", "ODS 12: Producción Responsable", "ODS 8: Trabajo Decente", "ODS 3: Salud y Bienestar", "ODS 9: Industria e Innovación"]
         })
         
+        df_roadmap = pd.DataFrame({
+            "ID_Tarea": list(range(1, 13)),
+            "Norma_ISO": ["ISO 14001"]*6 + ["ISO 45001"]*6,
+            "Requisito_Documental": [
+                "Política ambiental y alcance del SGA", "Matriz de aspectos e impactos ambientales",
+                "Registro de requisitos legales aplicables", "Objetivos ambientales y plan de acción",
+                "Procedimientos de control operacional", "Plan de respuesta ante emergencias ambientales",
+                "Política de SST y alcance del sistema", "Matriz de peligros y evaluación de riesgos (IPERC)",
+                "Registro de requisitos legales de SST", "Objetivos de SST y plan de acción",
+                "Plan de respuesta ante emergencias SST", "Registro de incidentes y acciones correctivas"
+            ],
+            "Estado": ["Completado", "En Proceso", "Completado", "En Proceso", "Pendiente", "Pendiente",
+                       "Completado", "En Proceso", "Completado", "En Proceso", "Pendiente", "Pendiente"],
+            "Completado": [True, False, True, False, False, False, True, False, True, False, False, False],
+            "ODS_Impactado": ["ODS 13", "ODS 12", "ODS 16", "ODS 9", "ODS 12", "ODS 11",
+                              "ODS 8", "ODS 3", "ODS 8", "ODS 8", "ODS 3", "ODS 8"]
+        })
+        return df_kpis, df_roadmap
         df_roadmap = pd.DataFrame({
             "ID_Tarea": list(range(1, 13)),
             "Norma_ISO": ["ISO 14001"]*6 + ["ISO 45001"]*6,
@@ -119,7 +156,8 @@ col1, col2, col3, col4 = st.columns(4)
 total_presupuesto = df_kpis_filtered["Presupuesto_Asignado_USD"].sum()
 total_gasto = df_kpis_filtered["Gasto_Actual_USD"].sum()
 total_ahorro = df_kpis_filtered["Ahorro_Generado_USD"].sum()
-roi_promedio = df_kpis_filtered["ROI_Proyectado_Pct"].mean() * 100
+roi_prom_raw = df_kpis_filtered["ROI_Proyectado_Pct"].mean()
+roi_promedio = roi_prom_raw * 100 if roi_prom_raw <= 1.0 else roi_prom_raw
 
 col1.metric("Presupuesto Asignado", f"${total_presupuesto:,.0f} USD")
 col2.metric("Inversión Ejecutada", f"${total_gasto:,.0f} USD", delta=f"-${(total_presupuesto - total_gasto):,.0f} Disponible")
